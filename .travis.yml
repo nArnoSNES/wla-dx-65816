@@ -1,0 +1,15 @@
+language: c
+
+script: make
+
+deploy:
+  provider: releases
+  api-key:
+    - secure: "b6mtRpbzwAu94C6RlcRnWpcy6X3jvjNvvguTeH1530mQfpAUIiDmtxmVI2Ic7N9RVPRRA6bm0jwxYSxBKYzRDt27eoqxR1sSo4HGPRfyjNqt1FLG9+r8i56K8p8HaJBLev204YKZLQtGVSVy0NvVYajaXSMc3e0uOWG8dFewS603gYGPSOyosv6UUAbzEN5szTCSx19dToa1MyU4ZdJkwE15y0jWaXfqqRljUJtVPRKUx30okz/gfr/XAs0rij244a2m/B/flY3IJClQEuPsYQMYB/sSSQxIIregrTM2Ow9PX4SCV+FO5qR2KKDXRy5xqzPp2ElptSstuvPNEgm/zzCzcf01X+1wUBs8C8Od5WQMlvEyWrDxLQsKG0AJbUcDHJL8gOLCF9bH8PhsoPNRt4LDdyP4i4+Pml/Ev69HCGvyS3NuBOt57dzwZbBEiMp9c013vxMxSsPErrQNu5OfuzcJm7vAWhlTaa8H0tJIg+OjzpHtFv7H8Y0OFU7GtFY5MHRcrVdSgaXQ1rvNk48oLK+jUfk4Gx11yemDXsS7QQc8FzaeSo5A+jbvgcWCvH1hKjwiwYnaOvfwiR31cH23AbLKmMsZeb3bqW4cmFZEQSXsiVZEjc5TSyJGhbIgcZIpM47pLkp3Xn4GhL2zqpGwo3R2lQHomHLAneZNaOJhWB8="
+  file_glob: true
+  file:
+    - wla-65816
+    - wlalink
+  skip_cleanup: true
+  on:
+    tags: true
