@@ -36,6 +36,7 @@ int create_full_name(char *dir, char *name) {
   char *t;
   int i;
 
+
   if (dir == NULL && name == NULL)
     return SUCCEEDED;
 
@@ -165,9 +166,9 @@ int include_file(char *name) {
     n = malloc(strlen(full_name)+1);
     if (file_name_info_tmp == NULL || n == NULL) {
       if (file_name_info_tmp != NULL)
-				free(file_name_info_tmp);
+	free(file_name_info_tmp);
       if (n != NULL)
-				free(n);
+	free(n);
       sprintf(emsg, "Out of memory while trying allocate info structure for file \"%s\".\n", full_name);
       print_error(emsg, ERROR_INC);
       return FAILED;
@@ -239,7 +240,7 @@ int include_file(char *name) {
   }
 
   /* reallocate tmp_a */
-  if (tmp_a_size < file_size) {
+  if (tmp_a_size < file_size || !tmp_a) {
 
     if (tmp_a != NULL)
       free(tmp_a);
@@ -278,12 +279,13 @@ int include_file(char *name) {
 }
 
 
-int incbin_file(char *name, int *id, int *swap, int *skip, int *read, struct macro_static **macro) {
+int incbin_file(char *name, int *id, int *swap, int *skip, int *read) {
 
   struct incbin_file_data *ifd;
   char *in_tmp, *n;
   int file_size, q;
   FILE *f;
+
 
   /* create the full output file name */
   if (create_full_name(include_dir, name) == FAILED)
@@ -378,12 +380,6 @@ int incbin_file(char *name, int *id, int *swap, int *skip, int *read, struct mac
     }
 
     *skip = d;
-
-		if (d >= file_size) {
-			sprintf(emsg, "SKIP value (%d) is more than the size (%d) of file \"%s\".\n", d, file_size, full_name);
-			print_error(emsg, ERROR_INB);
-			return FAILED;
-		}
   }
 
   /* READ bytes? */
@@ -398,12 +394,6 @@ int incbin_file(char *name, int *id, int *swap, int *skip, int *read, struct mac
     }
 
     *read = d;
-
-		if (*skip + *read > file_size) {
-			sprintf(emsg, "Overreading file \"%s\" by %d bytes.\n", full_name, *skip + *read - file_size);
-			print_error(emsg, ERROR_INB);
-			return FAILED;
-		}
   }
 
   /* SWAP bytes? */
@@ -411,7 +401,7 @@ int incbin_file(char *name, int *id, int *swap, int *skip, int *read, struct mac
     *swap = 0;
   else {
     if ((*read & 1) == 1) {
-      sprintf(emsg, "The read size of file \"%s\" is odd (%d)! Cannot perform SWAP.\n", full_name, *read);
+      sprintf(emsg, "File \"%s\" size is odd (%d)! Cannot perform SWAP.\n", full_name, *read);
       print_error(emsg, ERROR_INB);
       return FAILED;
     }
@@ -430,24 +420,11 @@ int incbin_file(char *name, int *id, int *swap, int *skip, int *read, struct mac
     add_a_new_definition(tmp, (double)file_size, NULL, DEFINITION_TYPE_VALUE, 0);
   }
 
-	/* FILTER? */
-  if (compare_next_token("FILTER", 6) == SUCCEEDED) {
-    skip_next_token();
-
-    /* get the filter macro name */
-    if (get_next_token() == FAILED)
-      return FAILED;
-
-		*macro = macro_get(tmp);
-
-		if (*macro == NULL) {
-			sprintf(emsg, "No MACRO \"%s\" defined.\n", tmp);
-			print_error(emsg, ERROR_INB);
-			return FAILED;
-		}
-	}
-	else
-		*macro = NULL;
+  if (*skip + *read > file_size) {
+    sprintf(emsg, "Overreading file \"%s\".\n", full_name);
+    print_error(emsg, ERROR_INB);
+    return FAILED;
+  }
 
   return SUCCEEDED;
 }
@@ -476,6 +453,7 @@ int print_file_names(void) {
 
   struct incbin_file_data *d;
   struct file_name_info *f;
+
 
   f = file_name_info_first;
   d = incbin_file_data_first;
@@ -522,6 +500,7 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
 #endif
   char *e;
 
+
   e = o + (*s);
   while (c < d) {
     switch (*c) {
@@ -532,57 +511,57 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
       e--;
       for ( ; e > o && *e == ' '; e--);
       if (e < o)
-				e = o;
+	e = o;
       else if (*e != ' ')
-				e++;
+	e++;
       break;
     case '*':
       if (t == 0) {
-				/* clear a commented line */
-				c++;
-				for ( ; c < d && *c != 0x0A && *c != 0x0D; c++);
+	/* clear a commented line */
+	c++;
+	for ( ; c < d && *c != 0x0A && *c != 0x0D; c++);
       }
       else {
-				/* multiplication! */
-				c++;
-				*e = '*';
-				e++;
-				t = 1;
+	/* multiplication! */
+	c++;
+	*e = '*';
+	e++;
+	t = 1;
       }
       break;
     case '/':
       if (*(c + 1) == '*') {
-				/* remove an ANSI C -style block comment */
-				t = 0;
-				c += 2;
-				while (t == 0) {
-					for ( ; c < d && *c != '/' && *c != 0x0A; c++);
-					if (c >= d) {
-						sprintf(emsg, "Comment wasn't terminated properly in file \"%s\".\n", f);
-						print_error(emsg, ERROR_INC);
-						return FAILED;
-					}
-					if (*c == 0x0A) {
-						*e = 0x0A;
-						e++;
-					}
-					if (*c == '/' && *(c - 1) == '*') {
-						t = 1;
-					}
-					c++;
-				}
-				e--;
-				for ( ; e > o && *e == ' '; e--);
-				if (e < o)
-					e = o;
-				else if (*e != ' ')
-					e++;
+	/* remove an ANSI C -style block comment */
+	t = 0;
+	c += 2;
+	while (t == 0) {
+	  for ( ; c < d && *c != '/' && *c != 0x0A; c++);
+	  if (c >= d) {
+	    sprintf(emsg, "Comment wasn't terminated properly in file \"%s\".\n", f);
+	    print_error(emsg, ERROR_INC);
+	    return FAILED;
+	  }
+	  if (*c == 0x0A) {
+	    *e = 0x0A;
+	    e++;
+	  }
+	  if (*c == '/' && *(c - 1) == '*') {
+	    t = 1;
+	  }
+	  c++;
+	}
+	e--;
+	for ( ; e > o && *e == ' '; e--);
+	if (e < o)
+	  e = o;
+	else if (*e != ' ')
+	  e++;
       }
       else {
-				c++;
-				*e = '/';
-				e++;
-				t = 1;
+	c++;
+	*e = '/';
+	e++;
+	t = 1;
       }
       break;
     case ':':
@@ -601,7 +580,7 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
       for ( ; c < d && (*c == ' ' || *c == 0x09); c++);
       t = 1;
       if (z == 1)
-				z = 2;
+	z = 2;
       break;
     case 0x0A:
       /* take away white space from the end of the line */
@@ -622,20 +601,20 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
       break;
     case '\'':
       if (*(c + 2) == '\'') {
-				*e = '\'';
-				c++;
-				e++;
-				*e = *c;
-				c++;
-				e++;
-				*e = '\'';
-				c++;
-				e++;
+	*e = '\'';
+	c++;
+	e++;
+	*e = *c;
+	c++;
+	e++;
+	*e = '\'';
+	c++;
+	e++;
       }
       else {
-				*e = '\'';
-				c++;
-				e++;
+	*e = '\'';
+	c++;
+	e++;
       }
       t = 1;
       break;
@@ -646,18 +625,18 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
       e++;
       t = 0;
       while (t == 0) {
-				for ( ; c < d && *c != '"'; ) {
-					*e = *c;
-					c++;
-					e++;
-				}
-				if (*c == '"' && *(c - 1) != '\\')
-					t = 1;
-				else {
-					*e = '"';
-					c++;
-					e++;
-				}
+	for ( ; c < d && *c != '"'; ) {
+	  *e = *c;
+	  c++;
+	  e++;
+	}
+	if (*c == '"' && *(c - 1) != '\\')
+	  t = 1;
+	else {
+	  *e = '"';
+	  c++;
+	  e++;
+	}
       }
       *e = '"';
       c++;
@@ -681,7 +660,7 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
     case ')':
       /* go back? */
       if (t == 1 && *(e - 1) == ' ')
-				e--;
+	e--;
       *e = ')';
       c++;
       e++;
@@ -700,25 +679,25 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
     case '+':
     case '-':
       if (t == 0) {
-				for ( ; c < d && (*c == '+' || *c == '-'); c++, e++)
-					*e = *c;
-				t = 1;
+	for ( ; c < d && (*c == '+' || *c == '-'); c++, e++)
+	  *e = *c;
+	t = 1;
       }
       else {
 #if defined(W65816) || defined(SPC700)
-				/* go back? */
-				if (*(e - 1) == ' ' && u == 1)
-					e--;
+	/* go back? */
+	if (*(e - 1) == ' ' && u == 1)
+	  e--;
 #else
-				/* go back? */
-				if ((z == 3 || *c == ',') && *(e - 1) == ' ')
-					e--;
+	/* go back? */
+	if ((z == 3 || *c == ',') && *(e - 1) == ' ')
+	  e--;
 #endif
-				*e = *c;
-				c++;
-				e++;
-				for ( ; c < d && (*c == ' ' || *c == 0x09); c++);
-				t = 1;
+	*e = *c;
+	c++;
+	e++;
+	for ( ; c < d && (*c == ' ' || *c == 0x09); c++);
+	t = 1;
       }
       break;
     default:
@@ -726,9 +705,9 @@ int preprocess_file(char *c, char *d, char *o, int *s, char *f) {
       c++;
       e++;
       if (z == 0)
-				z = 1;
+	z = 1;
       else if (z == 2)
-				z = 3;
+	z = 3;
       t = 1;
       break;
     }

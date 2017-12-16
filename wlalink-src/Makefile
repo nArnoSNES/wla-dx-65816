@@ -1,8 +1,8 @@
 
-CC = gcc
-LD = gcc
+CC=gcc -m64
+LD=gcc -m64
 
-CFLAGS = -c -O3 -ansi -pedantic -Wall -Wno-unused-result
+CFLAGS = -c -g -Wall -Wno-format
 LDFLAGS =
 
 CFILES = main.c memory.c parse.c files.c check.c analyze.c write.c compute.c discard.c listfile.c
@@ -10,9 +10,8 @@ HFILES = main.h memory.h parse.h files.h check.h analyze.h write.h compute.h dis
 OFILES = main.o memory.o parse.o files.o check.o analyze.o write.o compute.o discard.o listfile.o
 
 
-all: $(OFILES) makefile
-	$(LD) $(LDFLAGS) $(OFILES) -o wlalink ; strip wlalink
-
+all: $(OFILES) Makefile
+	$(LD) -g $(LDFLAGS) $(OFILES) -o wlalink 
 
 main.o: main.c main.h defines.h
 	$(CC) $(CFLAGS) main.c
@@ -44,12 +43,8 @@ discard.o: discard.c discard.h defines.h
 listfile.o: listfile.c listfile.h defines.h
 	$(CC) $(CFLAGS) listfile.c
 
-
 $(OFILES): $(HFILES)
-
 
 clean:
 	rm -f $(OFILES) core *~ wlalink
 
-install:
-	make ; cp wlalink /usr/local/bin

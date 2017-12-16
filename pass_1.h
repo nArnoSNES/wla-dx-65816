@@ -16,6 +16,4 @@ void print_error(char *error, int i);
 void next_line(void);
 void delete_stack(struct stack *s);
 
-struct macro_static *macro_get(char *name);
-
 #endif

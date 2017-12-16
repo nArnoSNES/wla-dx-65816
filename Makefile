@@ -2,7 +2,7 @@
 CC = gcc
 LD = gcc
 
-CFLAGS?= -c -O3 -ansi -pedantic -Wall -Wno-unused-result
+CFLAGS = -c -O3 -ansi -pedantic -Wall -Wno-unused-result -Wno-bool-compare -Wno-logical-not-parentheses
 LDFLAGS = -lm
 WLAFLAGS = $(CFLAGS) -DUNIX -DW65816
 
@@ -46,7 +46,6 @@ wlalink:
 	make -C wlalink-src && cp ./wlalink-src/wlalink .
 
 $(OFILES): $(HFILES)
-
 
 clean:
 	rm -f $(OFILES) core *~ wla-65816 wlalink

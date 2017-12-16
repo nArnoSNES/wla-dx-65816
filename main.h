@@ -9,8 +9,4 @@ int parse_and_add_definition(char *c);
 int generate_tmp_names(void);
 int generate_extra_definitions(void);
 
-/* mersenne twister */
-void init_genrand(unsigned long s);
-unsigned long genrand_int32(void);
-
 #endif

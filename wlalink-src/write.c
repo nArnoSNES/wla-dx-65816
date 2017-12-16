@@ -8,7 +8,7 @@
 #include "memory.h"
 #include "write.h"
 #include "files.h"
-
+#include "analyze.h"
 
 
 extern struct reference *reference_first, *reference_last;
@@ -26,12 +26,38 @@ extern int memory_file_id, memory_file_id_source, memory_line_number, output_mod
 extern int program_start, program_end, cpu_65816, snes_mode, smc_status;
 extern int snes_sramsize;
 
-
+#if 0
 static int _sections_sort(const void *a, const void *b) {
 
   if ((*((struct section **)a))->size < (*((struct section **)b))->size)
+/*  struct section* aa = *((struct section**)a);
+  struct section* bb = *((struct section**)b);
+  printf("comparing %s and %s\n",aa->name,bb->name);
+  return -strcmp(aa->name, bb->name); */
     return 1;
   return -1;
+}
+#endif
+
+static int _sections_sortalpha(const void *a, const void *b) {
+
+  struct section* aa = *((struct section**)a);
+  struct section* bb = *((struct section**)b);
+  //printf("comparing %s and %s\n",aa->name,bb->name);
+#if 0
+  if(!aa->name) fprintf(stderr,"no aname\n");
+  if(!bb->name) fprintf(stderr,"no bname\n");
+  if(strcmp(aa->name, bb->name) == 0) return 0;
+  if(aa->size < bb->size) return 1;
+  return -1;
+#else
+  int s = -strcmp(aa->name, bb->name);
+  /* identical names -> sort by file id, lowest first */
+  if (!s)
+    return (aa->file_id - bb->file_id);
+  else
+    return s;
+#endif
 }
 
 
@@ -81,11 +107,31 @@ int smc_create_and_write(FILE *f) {
   return SUCCEEDED;
 }
 
+void lookforsections(struct section** sa, int sn, int p, int* lookforsize, int* totalsections)
+{
+#if 1
+  struct section* s = sa[p];
+  *totalsections = 1;
+    //fprintf(stderr,"section %s size %d\n",s->name,s->size);
+    *lookforsize = s->size;
+    int pp = p+1;
+    if(strncmp(s->name, ".text", 5) == 0) return;
+    while(pp < sn && !strcmp(s->name, sa[pp]->name) && s->status == sa[pp]->status) {
+      //fprintf(stderr,"same section %s (%d and %d); size %d\n", s->name, p, pp, sa[pp]->size);
+      *lookforsize += sa[pp]->size;
+      pp++; (*totalsections)++;
+    }
+    //fprintf(stderr,"total size %d in %d sections\n", *lookforsize, *totalsections);
+#else
+  *lookforsize = sa[p]->size;
+  *totalsections = 1;
+#endif
+}
 
 int insert_sections(void) {
 
   struct section *s, **sa;
-  int d, f, i, x, t, q, sn, p;
+  int d, f, i, j, x, t, q, sn, p;
   char *ram_slots[256], *c;
 
   /* initialize ram slots */
@@ -137,7 +183,13 @@ int insert_sections(void) {
   }
 
   /* sort the sections by size, biggest first */
-  qsort(sa, sn, sizeof(struct section *), _sections_sort);
+  qsort(sa, sn, sizeof(struct section *), _sections_sortalpha); //_sections_sort);
+#if 0
+  for(i=0;i<sn;i++)
+  {
+    printf("s %s id %d\n",sa[i]->name,sa[i]->file_id);
+  }
+#endif
 
   /* print the sizes (DEBUG) */
   /*
@@ -145,23 +197,29 @@ int insert_sections(void) {
     fprintf(stderr, "SIZE: %d\n", sa[d]->size);
   */
 
+  int lookforsize;	/* total size of the section group */
+  int totalsections;	/* number of sections in this group */
   /* ram sections */
   p = 0;
   while (p < sn) {
-    s = sa[p++];
-
+    s = sa[p];
+    totalsections = 1;
     /* search for free space */
     if (s->status == SECTION_STATUS_RAM) {
+
+      /* find out if there is more than one section with this name and set
+         lookforsize and totalsections accordingly */
+      lookforsections(sa, sn, p, &lookforsize, &totalsections);
       c = ram_slots[s->slot];
       i = slots[s->slot].size;
       t = 0;
       for (x = 0; x < i; x++, c++) {
 				if (*c == 0) {
-					for (q = 0; x < i && q < s->size; x++, q++, c++) {
+					for (q = 0; x < i && q < lookforsize; x++, q++, c++) {
 						if (*c != 0)
 							break;
 					}
-					if (q == s->size) {
+					if (q == lookforsize) {
 						t = 1;
 						break;
 					}
@@ -169,17 +227,48 @@ int insert_sections(void) {
       }
 
       if (t == 0) {
-				fprintf(stderr, "INSERT_SECTIONS: No room for RAM section \"%s\" (%d bytes) in slot %d.\n", s->name, s->size, s->slot);
+				fprintf(stderr, "INSERT_SECTIONS: No room for RAM section \"%s\" (%d bytes) in slot %d.\n", s->name, lookforsize, s->slot);
+				fprintf(stderr, "c-s %d lfs %d tts %d\n", c-ram_slots[s->slot], lookforsize, totalsections);
 				return FAILED;
       }
 
       /* mark as used */
-      c = c - s->size;
-      for (i = 0; i < s->size; i++, c++)
+      c = c - lookforsize;
+      for (i = 0; i < lookforsize; i++, c++)
 				*c = 1;
 
-      s->address = c - s->size - ram_slots[s->slot];
+      c -= lookforsize;
+      
+      /* set the address of each section in this group */
+      for (i = 0; i < totalsections; i++) {
+        sa[p + i]->address = c - ram_slots[s->slot];
+        c += sa[p + i]->size;
+      }
+
+      /* generate labels for start and end of this ramsection (group) */
+      struct label* l;
+      l = malloc(sizeof(struct label));
+      sprintf(l->name, "__startramsection%s", s->name);
+      l->file_id = s->file_id;
+      l->file_id_source = s->file_id_source;
+      l->linenumber = 0;
+      l->rom_address = sa[p]->address;
+      l->section = s->id;
+      l->section_status = s->status;
+      l->bank = s->bank;
+      l->base = s->base;
+      l->slot = s->slot;
+      l->status = LABEL_STATUS_LABEL;
+      l->address = sa[p]->address;
+      add_label(l);
+      struct label* ll = malloc(sizeof(struct label));
+      *ll = *l;
+      sprintf(ll->name, "__endramsection%s", s->name);
+      ll->rom_address = sa[p+i-1]->address;
+      ll->address = sa[p+i-1]->address + sa[p+i-1]->size;
+      add_label(ll);
     }
+    p += totalsections;
   }
 
   /* free tmp memory */
@@ -270,6 +359,7 @@ int insert_sections(void) {
 				if (pc_bank == banks[s->bank]) {
 					fprintf(stderr, "%s:%s: INSERT_SECTIONS: No room for section \"%s\" (%d bytes) in ROM bank %d.\n", get_file_name(s->file_id),
 									get_source_file_name(s->file_id, s->file_id_source), s->name, s->size, s->bank);
+                                        fprintf(stderr,"banks[s->bank] %d, s->address 0x%x\n", banks[s->bank], s->address);
 					return FAILED;
 				}
 
@@ -299,8 +389,10 @@ int insert_sections(void) {
   /* superfree sections */
   p = 0;
   while (p < sn) {
-    s = sa[p++];
+    totalsections = 1;
+    s = sa[p];
     if (s->status == SECTION_STATUS_SUPERFREE) {
+      lookforsections(sa, sn, p, &lookforsize, &totalsections);
       /* go through all the banks */
       i = FAILED;
       f = 0;
@@ -320,8 +412,8 @@ int insert_sections(void) {
 
 				while (i == FAILED) {
 					f = pc_bank;
-					for (x = 0; pc_bank < banks[q] && rom_usage[pc_bank + d] == 0 && x < s->size; pc_bank++, x++);
-					if (x == s->size) {
+					for (x = 0; pc_bank < banks[q] && rom_usage[pc_bank + d] == 0 && x < lookforsize; pc_bank++, x++);
+					if (x == lookforsize) {
 						i = SUCCEEDED;
 						break;
 					}
@@ -337,20 +429,55 @@ int insert_sections(void) {
       }
 
       if (i == SUCCEEDED) {
-				s->bank = q-1;
+                                /* set bank for each section */
+				for(i = 0; i < totalsections; i++) sa[p+i]->bank = q-1;
+				
 				memory_file_id = s->file_id;
 				banksize = banks[s->bank];
 				pc_bank = f;
 				pc_slot = pc_bank;
 				pc_full = pc_bank + bankaddress[s->bank];
 				pc_slot_max = slots[s->slot].size;
-				s->address = pc_bank;
-				s->output_address = pc_full;
+				
 				section_overwrite = OFF;
 
-				for (i = 0; i < s->size; i++)
-					if (mem_insert_pc(s->data[i], s->slot, s->bank) == FAILED)
+                                /* write each section to memory and set its address in memory and in output file correctly */
+				for(j = 0; j < totalsections; j++) {
+				  //fprintf(stderr,"inserting section %d (%s, align %d) bank %d slot %d\n", j, sa[p+j]->name, sa[p+j]->alignment, sa[p+j]->bank, sa[p+j]->slot);
+				  //fprintf(stderr,"pc_bank %d pc_full %d pc_slot %d\n", pc_bank, pc_full,pc_slot);
+				  sa[p+j]->address = pc_bank;
+				  sa[p+j]->output_address = pc_full;
+				  for (i = 0; i < sa[p+j]->size; i++) {
+				        //fprintf(stderr,"inserting section %s byte %d\n", sa[p+j]->name, i);
+					if (mem_insert_pc(sa[p+j]->data[i], sa[p+j]->slot, sa[p+j]->bank) == FAILED)
 						return FAILED;
+                                  }
+                                }
+                                
+                                /* generate labels for section (group) start and end
+                                   (not for text sections) */
+                                if(strncmp(s->name,".text", 5)) { //totalsections > 1) {
+                                  struct label* l = malloc(sizeof(struct label));
+                                  sprintf(l->name, "__startsection%s", s->name);
+                                  l->file_id = s->file_id;
+                                  l->file_id_source = s->file_id_source;
+                                  l->linenumber = 0;
+                                  l->rom_address = s->address;
+                                  l->section = s->id;
+                                  l->section_status = s->status;
+                                  l->bank = s->bank;
+                                  l->base = s->base;
+                                  l->slot = s->slot;
+                                  l->status = LABEL_STATUS_LABEL;
+                                  l->address = s->address;
+                                  add_label(l);
+                                  struct label* ll = malloc(sizeof(struct label));
+                                  *ll = *l;
+                                  sprintf(ll->name, "__endsection%s", s->name);
+                                  ll->rom_address = sa[p+j-1]->address;
+                                  ll->address = sa[p+j-1]->address + sa[p+j-1]->size;
+                                  add_label(ll);
+                                }
       }
       else {
 				fprintf(stderr, "%s:%s: INSERT_SECTIONS: No room for section \"%s\" (%d bytes).\n", get_file_name(s->file_id),
@@ -358,6 +485,7 @@ int insert_sections(void) {
 				return FAILED;
       }
     }
+    p += totalsections;
   }
 
   /* overwrite sections */
@@ -483,12 +611,14 @@ int fix_labels(void) {
       m = l->next;
       while (m != NULL) {
 				if (strcmp(m->name, l->name) == 0) {
-					if (l->address != m->address && !(m->name[0] == '*' || m->name[0] == '_')) {
+					if (l->address != m->address && !(m->name[0] == '*' || is_label_section_local(m->name) == SUCCEEDED || is_label_file_local(m->name) == SUCCEEDED)) {
 						if (l->status == LABEL_STATUS_DEFINE)
 							fprintf(stderr, "%s: FIX_LABELS: Definition \"%s\" was defined more than once.\n", get_file_name(l->file_id), l->name);
-						else
+						else {
 							fprintf(stderr, "%s:%s:%d: FIX_LABELS: Label \"%s\" was defined more than once.\n", get_file_name(l->file_id),
 											get_source_file_name(l->file_id, l->file_id_source), l->linenumber, l->name);
+                                                        fprintf(stderr,"mn %s islsl %d islfl %d\n", m->name, is_label_section_local(m->name) == SUCCEEDED, is_label_file_local(m->name) == SUCCEEDED);
+                                                }
 						return FAILED;
 					}
 				}
@@ -562,11 +692,29 @@ int fix_references(void) {
 				l = &lt;
       }
       else {
+      				struct label *ll = NULL;
 				while (l != NULL) {
-					if (strcmp(l->name, &r->name[1]) == 0 && l->status != LABEL_STATUS_SYMBOL && l->status != LABEL_STATUS_BREAKPOINT)
-						break;
+					if (strcmp(l->name, &r->name[1]) == 0 && l->status != LABEL_STATUS_SYMBOL && l->status != LABEL_STATUS_BREAKPOINT) {
+				        	if (!ll) {
+                                                          ll = l;
+                                                }
+                                                else {
+							//printf("double label %s file_id %d r %s file_id %d\n", l->name, l->file_id, r->name, r->file_id);
+							if (is_label_file_local(&r->name[1]) == SUCCEEDED) {
+								if (l->file_id == r->file_id)
+									ll = l;
+							}
+							else {
+								fprintf(stderr,"%s:%s:%d: DUPLICATE LABEL: \"%s\" in files \"%s\" and \"%s\".\n",
+                                                                		get_file_name(r->file_id), get_source_file_name(r->file_id, r->file_id_source), r->linenumber,
+										&r->name[1],get_file_name(l->file_id),get_file_name(ll->file_id));
+								return FAILED;
+							}
+						}
+					}
 					l = l->next;
 				}
+				l = ll;
       }
 
       if (l == NULL) {
@@ -625,13 +773,13 @@ int fix_references(void) {
 						l = l->next;
 					else {
 						/* search for the section of the referencee */
-						if (r->name[0] == '_') {
+						if (is_label_section_local(r->name) == SUCCEEDED || is_label_file_local(r->name) == SUCCEEDED) {
 							if (l->file_id == r->file_id) {
 								if (l->section_status != r->section_status) {
 									l = l->next;
 									continue;
 								}
-								if (l->section_status == ON && l->section != r->section) {
+								if (is_label_section_local(r->name) == SUCCEEDED && l->section_status == ON && l->section != r->section) {
 									l = l->next;
 									continue;
 								}
@@ -1481,7 +1629,17 @@ int parse_stack(struct stack *sta) {
 				else {
 					while (l != NULL) {
 						if (strcmp(l->name, si->string) == 0) {
-							if (si->string[0] == '_') {
+						        if (is_label_file_local(si->string) == SUCCEEDED) {
+						          if(sta->file_id == l->file_id) {
+						            k = l->address;
+						            break;
+						          }
+						          else {
+						            l = l->next;
+						            continue;
+                                                          }
+						        }
+							else if (is_label_section_local(si->string) == SUCCEEDED) {
 								if (sta->section == l->section) {
 									k = l->address;
 									break;
@@ -1542,14 +1700,20 @@ int get_snes_pc_bank(struct label *l) {
 
   /* do we override the user's banking scheme (.HIROM/.LOROM)? */
   if (snes_mode != 0) {
-    /* use rom_address instead of address, as address points to
-       the position in destination machine's memory, not in rom */
-    k = l->rom_address;
+    /* leave labels in RAM untouched */
+    if((l->address < 0x2000 && l->bank == 0) || l->bank == 0x7e || l->bank == 0x7f) {
+      x = l->bank;
+    }
+    else {
+      /* use rom_address instead of address, as address points to
+         the position in destination machine's memory, not in rom */
+      k = l->rom_address;
 
-    if (snes_rom_mode == SNES_ROM_MODE_HIROM)
-      x = k / 0x10000;
-    else
-      x = k / 0x8000;
+      if (snes_rom_mode == SNES_ROM_MODE_HIROM)
+        x = k / 0x10000;
+      else
+        x = k / 0x8000;
+    }
   }
   /* or just use the user's banking chart */
   else {
@@ -1604,6 +1768,17 @@ int is_label_anonymous(char *l) {
   return SUCCEEDED;
 }
 
+int is_label_section_local(char* l)
+{
+  if(strncmp("__local_", l, 8) == 0) return SUCCEEDED;
+  return FAILED;
+}
+
+int is_label_file_local(char* l)
+{
+  if(strncmp("__tccs_", l, 7) == 0) return SUCCEEDED;
+  return FAILED;
+}
 
 struct label *get_closest_anonymous_label(char *name, int rom_address, int file_id, struct label *l, int section_status, int section) {
 

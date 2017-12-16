@@ -49,6 +49,7 @@ extern struct section_def *sections_first, *sections_last, *sec_tmp, *sec_next;
 
 
 
+
 int pass_2(void) {
 
   if (ifdef > 0) {

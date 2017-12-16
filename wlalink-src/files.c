@@ -16,236 +16,250 @@ extern struct label *labels_first, *labels_last;
 extern unsigned char *file_header, *file_footer;
 extern int file_header_size, file_footer_size;
 char file_name_error[] = "???";
+extern int object_file_parameters, no_std_libraries;
 
 
-
-int load_files(char *argv[], int argc) {
+int load_files(char *argv[], int argc, int have_flags) {
 
   struct label *l;
   int st = STATE_NONE, i, x, line, bank, slot, base, bank_defined, slot_defined, base_defined, n;
   char tmp[1024], ou[1024];
   FILE *fop;
 
-  fop = fopen(argv[argc - 2], "rb");
-  if (fop == NULL) {
-    fprintf(stderr, "LOAD_FILES: Could not open file \"%s\".\n", argv[argc - 2]);
-    return FAILED;
+  if (no_std_libraries == OFF) {
+    char* stdlibs[] = { };
+    char** sl;
+    for (sl = stdlibs; *sl; sl++) {
+      if (load_file(*sl, STATE_OBJECT, 0, 0, 0, OFF) == FAILED) return FAILED;
+    }
   }
-
-  line = 0;
-  while (fgets(tmp, 255, fop) != NULL) {
-    line++;
-    x = 0;
-
-    if (tmp[0] == ';' || tmp[0] == '*' || tmp[0] == '#' || tmp[0] == 0x0D || tmp[0] == 0x0A)
-      continue;
-
-    /* remove garbage from the end */
-    for (i = 0; !(tmp[i] == 0x0D || tmp[i] == 0x0A); i++);
-    tmp[i] = 0;
-
-    /* empty line check */
-    if (get_next_token(tmp, ou, &x) == FAILED)
-      continue;
-
-    /* first checks */
-    if (ou[0] == '[') {
-      if (strcmp("[objects]", ou) == 0) {
-				st = STATE_OBJECT;
-				continue;
-      }
-      else if (strcmp("[libraries]", ou) == 0) {
-				st = STATE_LIBRARY;
-				continue;
-      }
-      else if (strcmp("[header]", ou) == 0) {
-				st = STATE_HEADER;
-				continue;
-      }
-      else if (strcmp("[footer]", ou) == 0) {
-				st = STATE_FOOTER;
-				continue;
-      }
-      else if (strcmp("[definitions]", ou) == 0) {
-				st = STATE_DEFINITION;
-				continue;
-      }
-      else {
-				fprintf(stderr, "%s:%d LOAD_FILES: Unknown group \"%s\".\n", argv[argc - 2], line, ou);
-				fclose(fop);
-				return FAILED;
-      }
+  if (object_file_parameters == ON) {
+    for (i = (have_flags ? 2 : 1); i < argc - 1 ; i++) {
+      if (load_file(argv[i], STATE_OBJECT, 0, 0, 0, OFF) == FAILED) return FAILED;
     }
-
-    if (st == STATE_NONE) {
-      fprintf(stderr, "%s:%d: LOAD_FILES: Before file \"%s\" can be loaded you must define a group for it.\n", argv[argc - 2], line, ou);
-      fclose(fop);
+  }
+  else {
+    fop = fopen(argv[argc - 2], "rb");
+    if (fop == NULL) {
+      fprintf(stderr, "LOAD_FILES: Could not open file \"%s\".\n", argv[argc - 2]);
       return FAILED;
     }
 
-    bank_defined = OFF;
-    slot_defined = OFF;
-    base_defined = OFF;
-    bank = 0;
-    slot = 0;
-    base = 0;
+    line = 0;
+    while (fgets(tmp, 255, fop) != NULL) {
+      line++;
+      x = 0;
 
-    /* definition loading? */
-    if (st == STATE_DEFINITION) {
-      l = malloc(sizeof(struct label));
-      if (l == NULL) {
-				fprintf(stderr, "LOAD_FILES: Out of memory.\n");
-				return FAILED;
+      if (tmp[0] == ';' || tmp[0] == '*' || tmp[0] == '#' || tmp[0] == 0x0D || tmp[0] == 0x0A)
+        continue;
+
+      /* remove garbage from the end */
+      for (i = 0; !(tmp[i] == 0x0D || tmp[i] == 0x0A); i++);
+      tmp[i] = 0;
+
+      /* empty line check */
+      if (get_next_token(tmp, ou, &x) == FAILED)
+        continue;
+
+      /* first checks */
+      if (ou[0] == '[') {
+        if (strcmp("[objects]", ou) == 0) {
+                                  st = STATE_OBJECT;
+                                  continue;
+        }
+        else if (strcmp("[libraries]", ou) == 0) {
+                                  st = STATE_LIBRARY;
+                                  continue;
+        }
+        else if (strcmp("[header]", ou) == 0) {
+                                  st = STATE_HEADER;
+                                  continue;
+        }
+        else if (strcmp("[footer]", ou) == 0) {
+                                  st = STATE_FOOTER;
+                                  continue;
+        }
+        else if (strcmp("[definitions]", ou) == 0) {
+                                  st = STATE_DEFINITION;
+                                  continue;
+        }
+        else {
+                                  fprintf(stderr, "%s:%d LOAD_FILES: Unknown group \"%s\".\n", argv[argc - 2], line, ou);
+                                  fclose(fop);
+                                  return FAILED;
+        }
       }
-      strcpy(l->name, ou);
-      l->status = LABEL_STATUS_DEFINE;
-      l->bank = 0;
-      l->slot = 0;
-      l->base = 0;
 
-      if (get_next_number(&tmp[x], &n, &x) == FAILED) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: Error in DEFINITION value.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
+      if (st == STATE_NONE) {
+        fprintf(stderr, "%s:%d: LOAD_FILES: Before file \"%s\" can be loaded you must define a group for it.\n", argv[argc - 2], line, ou);
+        fclose(fop);
+        return FAILED;
       }
 
-      l->address = n;
-      add_label(l);
-      continue;
-    }
-    /* header loading? */
-    else if (st == STATE_HEADER) {
-      if (file_header != NULL) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: There can be only one header file.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
+      bank_defined = OFF;
+      slot_defined = OFF;
+      base_defined = OFF;
+      bank = 0;
+      slot = 0;
+      base = 0;
 
-      if (load_file_data(ou, &file_header, &file_header_size) == FAILED) {
-				fclose(fop);
-				return FAILED;
+      /* definition loading? */
+      if (st == STATE_DEFINITION) {
+        l = malloc(sizeof(struct label));
+        if (l == NULL) {
+                                  fprintf(stderr, "LOAD_FILES: Out of memory.\n");
+                                  return FAILED;
+        }
+        strcpy(l->name, ou);
+        l->status = LABEL_STATUS_DEFINE;
+        l->bank = 0;
+        l->slot = 0;
+        l->base = 0;
+
+        if (get_next_number(&tmp[x], &n, &x) == FAILED) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: Error in DEFINITION value.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        l->address = n;
+        add_label(l);
+        continue;
+      }
+      /* header loading? */
+      else if (st == STATE_HEADER) {
+        if (file_header != NULL) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: There can be only one header file.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        if (load_file_data(ou, &file_header, &file_header_size) == FAILED) {
+                                  fclose(fop);
+                                  return FAILED;
+        }
+        if (get_next_token(&tmp[x], ou, &x) == FAILED)
+                                  continue;
+
+        fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
+        fclose(fop);
+        return FAILED;
+      }
+      /* footer loading? */
+      else if (st == STATE_FOOTER) {
+        if (file_footer != NULL) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: There can be only one footer file.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        if (load_file_data(ou, &file_footer, &file_footer_size) == FAILED) {
+                                  fclose(fop);
+                                  return FAILED;
+        }
+        if (get_next_token(&tmp[x], ou, &x) == FAILED)
+                                  continue;
+
+        fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
+        fclose(fop);
+        return FAILED;
+      }
+      /* library loading? */
+      else if (st == STATE_LIBRARY) {
+        i = SUCCEEDED;
+        while (i == SUCCEEDED) {
+                                  if (strcmp(ou, "bank") == 0 || strcmp(ou, "BANK") == 0) {
+                                          if (bank_defined == ON) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: BANK defined for the second time for a library file.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                          bank_defined = ON;
+
+                                          if (get_next_number(&tmp[x], &bank, &x) == FAILED) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: Error in BANK number.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                  }
+                                  else if (strcmp(ou, "slot") == 0 || strcmp(ou, "SLOT") == 0) {
+                                          if (slot_defined == ON) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: SLOT defined for the second time for a library file.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                          slot_defined = ON;
+
+                                          if (get_next_number(&tmp[x], &slot, &x) == FAILED) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: Error in SLOT number.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                  }
+                                  else if (strcmp(ou, "base") == 0 || strcmp(ou, "BASE") == 0) {
+                                          if (base_defined == ON) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: BASE defined for the second time for a library file.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                          base_defined = ON;
+
+                                          if (get_next_number(&tmp[x], &base, &x) == FAILED) {
+                                                  fprintf(stderr, "%s:%d: LOAD_FILES: Error in BASE number.\n", argv[argc - 2], line);
+                                                  fclose(fop);
+                                                  return FAILED;
+                                          }
+                                  }
+                                  else
+                                          break;
+
+                                  i = get_next_token(&tmp[x], ou, &x);
+        }
+
+        if (i == FAILED) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: No library to load.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+        if (slot_defined == OFF) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: Library file requires a SLOT.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+        if (bank_defined == OFF) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: Library file requires a BANK.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        if (load_file(ou, STATE_LIBRARY, bank, slot, base, base_defined) == FAILED) {
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        if (get_next_token(&tmp[x], ou, &x) == SUCCEEDED) {
+                                  fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
+                                  fclose(fop);
+                                  return FAILED;
+        }
+
+        continue;
+      }
+      /* object file loading */
+      else if (load_file(ou, STATE_OBJECT, 0, 0, 0, OFF) == FAILED) {
+        fclose(fop);
+        return FAILED;
       }
       if (get_next_token(&tmp[x], ou, &x) == FAILED)
-				continue;
+        continue;
 
       fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
       fclose(fop);
       return FAILED;
     }
-    /* footer loading? */
-    else if (st == STATE_FOOTER) {
-      if (file_footer != NULL) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: There can be only one footer file.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
 
-      if (load_file_data(ou, &file_footer, &file_footer_size) == FAILED) {
-				fclose(fop);
-				return FAILED;
-      }
-      if (get_next_token(&tmp[x], ou, &x) == FAILED)
-				continue;
-
-      fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
-      fclose(fop);
-      return FAILED;
-    }
-    /* library loading? */
-    else if (st == STATE_LIBRARY) {
-      i = SUCCEEDED;
-      while (i == SUCCEEDED) {
-				if (strcmp(ou, "bank") == 0 || strcmp(ou, "BANK") == 0) {
-					if (bank_defined == ON) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: BANK defined for the second time for a library file.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-					bank_defined = ON;
-
-					if (get_next_number(&tmp[x], &bank, &x) == FAILED) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: Error in BANK number.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-				}
-				else if (strcmp(ou, "slot") == 0 || strcmp(ou, "SLOT") == 0) {
-					if (slot_defined == ON) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: SLOT defined for the second time for a library file.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-					slot_defined = ON;
-
-					if (get_next_number(&tmp[x], &slot, &x) == FAILED) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: Error in SLOT number.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-				}
-				else if (strcmp(ou, "base") == 0 || strcmp(ou, "BASE") == 0) {
-					if (base_defined == ON) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: BASE defined for the second time for a library file.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-					base_defined = ON;
-
-					if (get_next_number(&tmp[x], &base, &x) == FAILED) {
-						fprintf(stderr, "%s:%d: LOAD_FILES: Error in BASE number.\n", argv[argc - 2], line);
-						fclose(fop);
-						return FAILED;
-					}
-				}
-				else
-					break;
-
-				i = get_next_token(&tmp[x], ou, &x);
-      }
-
-      if (i == FAILED) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: No library to load.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
-      if (slot_defined == OFF) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: Library file requires a SLOT.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
-      if (bank_defined == OFF) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: Library file requires a BANK.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
-
-      if (load_file(ou, STATE_LIBRARY, bank, slot, base, base_defined) == FAILED) {
-				fclose(fop);
-				return FAILED;
-      }
-
-      if (get_next_token(&tmp[x], ou, &x) == SUCCEEDED) {
-				fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
-				fclose(fop);
-				return FAILED;
-      }
-
-      continue;
-    }
-    /* object file loading */
-    else if (load_file(ou, STATE_OBJECT, 0, 0, 0, OFF) == FAILED) {
-      fclose(fop);
-      return FAILED;
-    }
-    if (get_next_token(&tmp[x], ou, &x) == FAILED)
-      continue;
-
-    fprintf(stderr, "%s:%d: LOAD_FILES: Syntax error.\n", argv[argc - 2], line);
     fclose(fop);
-    return FAILED;
   }
-
-  fclose(fop);
 
   return SUCCEEDED;
 }

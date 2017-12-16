@@ -37,32 +37,32 @@ long __stack = 65536;
 
 #ifdef AMIGA
 #ifdef GB
-char version_string[] = "$VER: WLA-GB 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-GB 9.4 (09.09.2006)";
 #endif
 #ifdef Z80
-char version_string[] = "$VER: WLA-Z80 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-Z80 9.4 (09.09.2006)";
 #endif
 #ifdef MCS6502
-char version_string[] = "$VER: WLA-6502 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-6502 9.4 (09.09.2006)";
 #endif
 #ifdef WDC65C02
-char version_string[] = "$VER: WLA-65C02 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-65C02 9.4 (09.09.2006)";
 #endif
 #ifdef W65816
-char version_string[] = "$VER: WLA-65816 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-65816 9.4 (09.09.2006)";
 #endif
 #ifdef MCS6510
-char version_string[] = "$VER: WLA-6510 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-6510 9.4 (09.09.2006)";
 #endif
 #ifdef SPC700
-char version_string[] = "$VER: WLA-SPC700 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-SPC700 9.4 (09.09.2006)";
 #endif
 #ifdef HUC6280
-char version_string[] = "$VER: WLA-HuC6280 9.5 (02.03.2008)";
+char version_string[] = "$VER: WLA-HuC6280 9.4 (09.09.2006)";
 #endif
 #endif
 
-char wla_version[] = "9.5";
+char wla_version[] = "9.4";
 
 char gba_tmp_name[32], gba_unfolded_name[32];
 
@@ -91,6 +91,7 @@ int listfile_data = NO, quiet = NO;
 char *final_name = NULL, *asm_name = NULL;
 
 
+
 int main(int argc, char *argv[]) {
 
   int i = SUCCEEDED;
@@ -103,7 +104,7 @@ int main(int argc, char *argv[]) {
   atexit(procedures_at_exit);
 
   /* init the randon number generator */
-  init_genrand(time(NULL));
+  srand(time(NULL));
 
   if (argc >= 3) {
     if (parse_flags(argv[1]) == SUCCEEDED) {
@@ -118,30 +119,30 @@ int main(int argc, char *argv[]) {
 
   if (i == FAILED || output_format == OUTPUT_NONE) {
 #ifdef GB
-    printf("\nWLA GB-Z80 Macro Assembler v9.5\n");
+    printf("\nWLA GB-Z80 Macro Assembler v9.4\n");
 #endif
 #ifdef Z80
-    printf("\nWLA Z80 Macro Assembler v9.5\n");
+    printf("\nWLA Z80 Macro Assembler v9.4\n");
 #endif
 #ifdef MCS6502
-    printf("\nWLA 6502 Macro Assembler v9.5\n");
+    printf("\nWLA 6502 Macro Assembler v9.4\n");
 #endif
 #ifdef WDC65C02
-    printf("\nWLA 65C02 Macro Assembler v9.5\n");
+    printf("\nWLA 65C02 Macro Assembler v9.4\n");
 #endif
 #ifdef W65816
-    printf("\nWLA 65816 Macro Assembler v9.5\n");
+    printf("\nWLA 65816 Macro Assembler v9.4\n");
 #endif
 #ifdef MCS6510
-    printf("\nWLA 6510 Macro Assembler v9.5\n");
+    printf("\nWLA 6510 Macro Assembler v9.4\n");
 #endif
 #ifdef SPC700
-    printf("\nWLA SPC-700 Macro Assembler v9.5\n");
+    printf("\nWLA SPC-700 Macro Assembler v9.4\n");
 #endif
 #ifdef HUC6280
-    printf("\nWLA HuC6280 Macro Assembler v9.5\n");
+    printf("\nWLA HuC6280 Macro Assembler v9.4\n");
 #endif
-    printf("Written by Ville Helin in 1998-2008\n");
+    printf("Written by Ville Helin in 1998-2006\n");
     printf("USAGE: %s -[iMqtvx]{lo} [DEFINITIONS] <ASM FILE> [OUTPUT FILE]\n", argv[0]);
     printf("Commands:             Options:\n");
     printf("l  Library file       i  Add list file information\n");
@@ -602,119 +603,4 @@ int parse_and_add_definition(char *c) {
   }
 
   return FAILED;
-}
-
-/*
- *
- *
- * MERSENNE TWISTER
- *
- *
- */
-
-/* 
-   A C-program for MT19937, with initialization improved 2002/1/26.
-   Coded by Takuji Nishimura and Makoto Matsumoto.
-
-   Before using, initialize the state by using init_genrand(seed)  
-   or init_by_array(init_key, key_length).
-
-   Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
-   All rights reserved.                          
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions
-   are met:
-
-     1. Redistributions of source code must retain the above copyright
-        notice, this list of conditions and the following disclaimer.
-
-     2. Redistributions in binary form must reproduce the above copyright
-        notice, this list of conditions and the following disclaimer in the
-        documentation and/or other materials provided with the distribution.
-
-     3. The names of its contributors may not be used to endorse or promote 
-        products derived from this software without specific prior written 
-        permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
-   Any feedback is very welcome.
-   http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/emt.html
-   email: m-mat @ math.sci.hiroshima-u.ac.jp (remove space)
-*/
-
-/* Period parameters */  
-#define N 624
-#define M 397
-#define MATRIX_A 0x9908b0dfUL   /* constant vector a */
-#define UPPER_MASK 0x80000000UL /* most significant w-r bits */
-#define LOWER_MASK 0x7fffffffUL /* least significant r bits */
-
-static unsigned long mt[N]; /* the array for the state vector  */
-static int mti=N+1; /* mti==N+1 means mt[N] is not initialized */
-
-/* initializes mt[N] with a seed */
-void init_genrand(unsigned long s)
-{
-    mt[0]= s & 0xffffffffUL;
-    for (mti=1; mti<N; mti++) {
-        mt[mti] = 
-	    (1812433253UL * (mt[mti-1] ^ (mt[mti-1] >> 30)) + mti); 
-        /* See Knuth TAOCP Vol2. 3rd Ed. P.106 for multiplier. */
-        /* In the previous versions, MSBs of the seed affect   */
-        /* only MSBs of the array mt[].                        */
-        /* 2002/01/09 modified by Makoto Matsumoto             */
-        mt[mti] &= 0xffffffffUL;
-        /* for >32 bit machines */
-    }
-}
-
-/* generates a random number on [0,0xffffffff]-interval */
-unsigned long genrand_int32(void)
-{
-    unsigned long y;
-    static unsigned long mag01[2]={0x0UL, MATRIX_A};
-    /* mag01[x] = x * MATRIX_A  for x=0,1 */
-
-    if (mti >= N) { /* generate N words at one time */
-        int kk;
-
-        if (mti == N+1)   /* if init_genrand() has not been called, */
-            init_genrand(5489UL); /* a default initial seed is used */
-
-        for (kk=0;kk<N-M;kk++) {
-            y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
-            mt[kk] = mt[kk+M] ^ (y >> 1) ^ mag01[y & 0x1UL];
-        }
-        for (;kk<N-1;kk++) {
-            y = (mt[kk]&UPPER_MASK)|(mt[kk+1]&LOWER_MASK);
-            mt[kk] = mt[kk+(M-N)] ^ (y >> 1) ^ mag01[y & 0x1UL];
-        }
-        y = (mt[N-1]&UPPER_MASK)|(mt[0]&LOWER_MASK);
-        mt[N-1] = mt[M-1] ^ (y >> 1) ^ mag01[y & 0x1UL];
-
-        mti = 0;
-    }
-  
-    y = mt[mti++];
-
-    /* Tempering */
-    y ^= (y >> 11);
-    y ^= (y << 7) & 0x9d2c5680UL;
-    y ^= (y << 15) & 0xefc60000UL;
-    y ^= (y >> 18);
-
-    return y;
 }

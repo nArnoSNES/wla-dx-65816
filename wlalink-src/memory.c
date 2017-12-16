@@ -25,7 +25,7 @@ int mem_insert(int address, unsigned char data) {
     return SUCCEEDED;
   }
   if (rom_usage[address] != 0)
-    fprintf(stderr, "%s: MEM_INSERT: Overwrite at $%x (old $%.2x new $%.2x).\n", get_file_name(memory_file_id), address, rom[address], data);
+    fprintf(stderr, "%s: 1MEM_INSERT: Overwrite at $%x (old $%.2x new $%.2x).\n", get_file_name(memory_file_id), address, rom[address], data);
 
   rom_usage[address]++;
   rom[address] = data;
@@ -37,14 +37,15 @@ int mem_insert(int address, unsigned char data) {
 int mem_insert_ref(int address, unsigned char data) {
 
   if (address > romsize || address < 0) {
-    fprintf(stderr, "%s:%s:%d: MEM_INSERT: Address $%x is out of the output range $0-$%x.\n",
+    fprintf(stderr, "%s:%s:%d: 2MEM_INSERT: Address $%x is out of the output range $0-$%x.\n",
 	    get_file_name(memory_file_id), get_source_file_name(memory_file_id, memory_file_id_source), memory_line_number, address, romsize);
     return FAILED;
   }
   if (rom_usage[address] > 1 && rom[address] != data) {
-    if (memory_line_number != 0)
-      fprintf(stderr, "%s:%s:%d: MEM_INSERT: Overwrite at $%x (old $%.2x new $%.2x).\n",
+    if (memory_line_number != 0) {
+      fprintf(stderr, "%s:%s:%d: 3MEM_INSERT: Overwrite at $%x (old $%.2x new $%.2x).\n",
 	      get_file_name(memory_file_id), get_source_file_name(memory_file_id, memory_file_id_source), memory_line_number, address, rom[address], data);
+      }
     else
       fprintf(stderr, "%s:%s:[WLA]: MEM_INSERT: Overwrite at $%x (old $%.2x new $%.2x).\n",
 	      get_file_name(memory_file_id), get_source_file_name(memory_file_id, memory_file_id_source), address, rom[address], data);
@@ -67,8 +68,9 @@ int mem_insert_pc(unsigned char d, int slot_current, int bank_current) {
     fprintf(stderr, "%s: MEM_INSERT: Overflow from bank %d.\n", get_file_name(memory_file_id), bank_current);
     return FAILED;
   }
-  if (rom_usage[pc_full] != 0 && rom[pc_full] != d && section_overwrite == OFF)
+  if (rom_usage[pc_full] != 0 && rom[pc_full] != d && section_overwrite == OFF) {
     fprintf(stderr, "%s: MEM_INSERT: Overwrite at $%x, old $%x new $%x\n", get_file_name(memory_file_id), pc_full, rom[pc_full], d);
+  }
 
   if (section_overwrite == OFF)
     rom_usage[pc_full]++;

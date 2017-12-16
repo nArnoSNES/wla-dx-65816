@@ -72,7 +72,7 @@ int discard_iteration(void) {
      check if the section is of proper type */
   s = sec_first;
   while (s != NULL) {
-    if (s->name[0] == '!' || !(s->status == SECTION_STATUS_FREE || s->status == SECTION_STATUS_SEMIFREE)) {
+    if (strstr(s->name, "data") || s->name[0] == '!' || !(s->status == SECTION_STATUS_FREE || s->status == SECTION_STATUS_SEMIFREE || s->status == SECTION_STATUS_SUPERFREE)) {
       s->referenced++;
       s->alive = YES;
     }
@@ -83,7 +83,7 @@ int discard_iteration(void) {
   r = reference_first;
   while (r != NULL) {
     /* references to local labels don't count */
-    if (r->name[0] == '_' || is_label_anonymous(r->name) == SUCCEEDED) {
+    if (is_label_section_local(r->name) == SUCCEEDED || is_label_anonymous(r->name) == SUCCEEDED) {
       r = r->next;
       continue;
     }

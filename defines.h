@@ -435,30 +435,12 @@ struct macro_static {
   struct macro_static *next;
 };
 
-struct macro_incbin {
-	unsigned char *data;
-	int swap;
-	int position;
-	int left;
-};
-
-#define MACRO_CALLER_NORMAL 0
-#define MACRO_CALLER_DBM    1
-#define MACRO_CALLER_DWM    2
-#define MACRO_CALLER_INCBIN 3
-
 struct macro_runtime {
   struct macro_static *macro;
-  int  macro_end;
-  int  macro_end_line;
-  int  macro_end_filename_id;
-  int  supplied_arguments;
-	int  caller;
-	char string[MAX_NAME_LENGTH];
-	int  string_current;
-	int  string_last;
-	int  offset;
-	struct macro_incbin *incbin_data;
+  int macro_end;
+  int macro_end_line;
+  int macro_end_filename_id;
+  int supplied_arguments;
   struct macro_argument **argument_data;
 };
 
@@ -629,6 +611,8 @@ struct filepointer {
 #define TYPE_VALUE             1
 #define TYPE_LABEL             2
 #define TYPE_STACK_CALCULATION 3
+
+#define SEC_TO_CHAR(s) s>>24,(s>>16)&0xff,(s>>8)&0xff,s&0xff
 
 #endif
 

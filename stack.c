@@ -93,7 +93,7 @@ int stack_calculate(char *in, int *value) {
 
 
   /* slice the data into infix format */
-  while (*in != 0xA) {
+  while (*in != 0x0A) {
     /* init the stack item */
     si[q].type = 0x123456;
     si[q].sign = 0x123456;
@@ -284,7 +284,7 @@ int stack_calculate(char *in, int *value) {
 					d += e - '0';
 				else if (e == ' ' || e == ')' || e == '|' || e == '&' || e == '+' || e == '-' || e == '*' ||
 								 e == '/' || e == ',' || e == '^' || e == '<' || e == '>' || e == '#' || e == '~' ||
-								 e == ']' || e == '.' || e == 0xA)
+								 e == ']' || e == '.' || e == 0x0A)
 					break;
 				else {
 					if (input_number_error_msg == YES) {
@@ -331,7 +331,7 @@ int stack_calculate(char *in, int *value) {
 					d += e - 'a' + 10;
 				else if (e == ' ' || e == ')' || e == '|' || e == '&' || e == '+' || e == '-' ||
 								 e == '*' || e == '/' || e == ',' || e == '^' || e == '<' || e == '>' ||
-								 e == '#' || e == '~' || e == ']' || e == '.' || e == 0xA)
+								 e == '#' || e == '~' || e == ']' || e == '.' || e == 0x0A)
 					break;
 				else {
 					if (input_number_error_msg == YES) {
@@ -383,7 +383,7 @@ int stack_calculate(char *in, int *value) {
 						d += e - 'a' + 10;
 					else if (e == ' ' || e == ')' || e == '|' || e == '&' || e == '+' || e == '-' ||
 									 e == '*' || e == '/' || e == ',' || e == '^' || e == '<' || e == '>' ||
-									 e == '#' || e == '~' || e == ']' || e == '.' || e == 'h' || e == 'H' || e == 0xA)
+									 e == '#' || e == '~' || e == ']' || e == '.' || e == 'h' || e == 'H' || e == 0x0A)
 						break;
 					else {
 						if (input_number_error_msg == YES) {
@@ -421,7 +421,7 @@ int stack_calculate(char *in, int *value) {
 					}
 					else if (e == ' ' || e == ')' || e == '|' || e == '&' || e == '+' || e == '-' || e == '*' ||
 									 e == '/' || e == ',' || e == '^' || e == '<' || e == '>' || e == '#' || e == '~' ||
-									 e == ']' || e == 0xA)
+									 e == ']' || e == 0x0A)
 						break;
 					else if (e == '.') {
 #if defined(MCS6502) || defined(W65816) || defined(MCS6510) || defined(WDC65C02) || defined(HUC6280)

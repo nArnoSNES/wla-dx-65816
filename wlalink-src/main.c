@@ -26,7 +26,7 @@
 */
 
 #ifdef AMIGA
-char version_string[] = "$VER: WLALINK 5.7 (02.03.2008)";
+char version_string[] = "$VER: WLALINK 5.7 (01.01.2007)";
 #endif
 
 struct object_file *obj_first = NULL, *obj_last = NULL, *obj_tmp;
@@ -43,6 +43,7 @@ int output_mode = OUTPUT_ROM, discard_unreferenced_sections = OFF;
 int program_start, program_end, sms_checksum, snes_rom_mode = SNES_ROM_MODE_LOROM, snes_rom_speed = SNES_ROM_SPEED_SLOWROM;
 int gb_checksum, gb_complement_check, snes_checksum, cpu_65816 = 0, snes_mode = 0;
 int listfile_data = NO, smc_status = 0, snes_sramsize = 0;
+int no_std_libraries = OFF, object_file_parameters = OFF;
 
 extern int emptyfill;
 
@@ -69,15 +70,16 @@ int main(int argc, char *argv[]) {
   else
     i = FAILED;
 
-  if (x == FAILED && argc != 3)
+  if (x == FAILED && argc < 3)
     i = FAILED;
-  if (x == SUCCEEDED && argc != 4)
+  if (x == SUCCEEDED && argc < 4)
     i = FAILED;
 
   if (i == FAILED) {
     printf("\nWLALINK GB-Z80/Z80/6502/65C02/6510/65816/HUC6280/SPC-700 WLA Macro Assembler Linker v5.7\n");
-    printf("Written by Ville Helin in 2000-2008\n");
-    printf("USAGE: %s [-bdrvsS] <LINK FILE> <OUTPUT FILE>\n", argv[0]);
+    printf("Written by Ville Helin in 2000-2007\n");
+    printf("Modified for snes-sdk by Ulrich Hecht\n");
+    printf("USAGE: %s [-bdrvsSno] (<LINK FILE>|<OBJECT FILES...>) <OUTPUT FILE>\n", argv[0]);
     printf("Options:\n");
     printf("b  Program file output\n");
     printf("d  Discard unreferenced sections\n");
@@ -85,12 +87,14 @@ int main(int argc, char *argv[]) {
     printf("r  ROM file output (default)\n");
     printf("v  Verbose messages\n");
     printf("s  Write also a NO$GMB symbol file\n");
-    printf("S  Write also a WLA symbol file\n\n");
+    printf("S  Write also a WLA symbol file\n");
+    printf("n  Do not link standard libraries\n");
+    printf("o  Take object files instead of link file\n\n");
     return 0;
   }
 
   /* load files */
-  if (load_files(argv, argc) == FAILED)
+  if (load_files(argv, argc, x == SUCCEEDED) == FAILED)
     return 1;
 
   /* check file types */
@@ -365,9 +369,9 @@ int main(int argc, char *argv[]) {
       }
       f = (((float)x)/banks[q]) * 100.0f;
       if (f == 100.0f)
-				fprintf(stderr, "Bank %.2d has %.5d bytes (%.1f%%) free.\n", q, x, f);
+				printf("Bank %.2d has %.5d bytes (%.1f%%) free.\n", q, x, f);
       else
-				fprintf(stderr, "Bank %.2d has %.5d bytes (%.2f%%) free.\n", q, x, f);
+				printf("Bank %.2d has %.5d bytes (%.2f%%) free.\n", q, x, f);
     }
 
     /* ROM data */
@@ -529,6 +533,12 @@ int parse_flags(char *f) {
       continue;
     case 'd':
       discard_unreferenced_sections = ON;
+      continue;
+    case 'n':
+      no_std_libraries = ON;
+      continue;
+    case 'o':
+      object_file_parameters = ON;
       continue;
     default:
       return FAILED;

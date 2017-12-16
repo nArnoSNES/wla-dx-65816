@@ -8,7 +8,6 @@
 
 #include "defines.h"
 
-#include "main.h"
 #include "include_file.h"
 #include "parse.h"
 #include "pass_1.h"
@@ -107,7 +106,6 @@ extern char *final_name;
 extern struct active_file_info *active_file_info_first, *active_file_info_last, *active_file_info_tmp;
 extern struct file_name_info *file_name_info_first, *file_name_info_last, *file_name_info_tmp;
 extern struct stack *stacks_first, *stacks_tmp, *stacks_last;
-extern struct incbin_file_data *incbin_file_data_first, *ifd_tmp;
 
 int opcode_n[256], opcode_p[256];
 int macro_stack_size = 0, repeat_stack_size = 0;
@@ -125,10 +123,39 @@ int accu_size = 8, index_size = 8;
 __far /* put the following big table in the FAR data section */
 #endif
 
+#ifdef GB
+#include "opcodes_gb.c"
+#include "opcodes_gb_tables.c"
+#endif
+#ifdef Z80
+#include "opcodes_z80.c"
+#include "opcodes_z80_tables.c"
+#endif
+#ifdef MCS6502
+#include "opcodes_6502.c"
+#include "opcodes_6502_tables.c"
+#endif
+#ifdef WDC65C02
+#include "opcodes_65c02.c"
+#include "opcodes_65c02_tables.c"
+#endif
+#ifdef MCS6510
+#include "opcodes_6510.c"
+#include "opcodes_6510_tables.c"
+#endif
 #ifdef W65816
 #include "opcodes_65816.c"
 #include "opcodes_65816_tables.c"
 #endif
+#ifdef SPC700
+#include "opcodes_spc700.c"
+#include "opcodes_spc700_tables.c"
+#endif
+#ifdef HUC6280
+#include "opcodes_huc6280.c"
+#include "opcodes_huc6280_tables.c"
+#endif
+
 
 int strcaselesscmp(char *s1, char *s2) {
 
@@ -149,323 +176,9 @@ int strcaselesscmp(char *s1, char *s2) {
 }
 
 
-struct macro_static *macro_get(char *name) {
-
-	struct macro_static *m;
-
-	m = macros_first;
-	while (m != NULL) {
-		if (strcmp(m->name, name) == 0)
-			break;
-		m = m->next;
-	}
-
-	return m;
-}
-
-
-int macro_stack_grow(void) {
-
-	if (macro_active == macro_stack_size) {
-
-		struct macro_runtime *n;
-		int old;
-
-		/* enlarge the macro stack */
-		old = macro_stack_size;
-		macro_stack_size = (macro_stack_size<<1)+2;
-
-		n = calloc(sizeof(struct macro_runtime) * macro_stack_size, 1);
-		if (n == NULL) {
-			print_error("Out of memory error while enlarging macro stack buffer.\n", ERROR_ERR);
-			return FAILED;
-		}
-
-		memcpy(n, macro_stack, sizeof(struct macro_runtime) * old);
-
-		macro_stack = n;
-	}
-
-	return SUCCEEDED;
-}
-
-
-int macro_start(struct macro_static *m, struct macro_runtime *mrt, int caller, int nargs) {
-
-	macro_runtime_current = mrt;
-	macro_active++;
-	m->calls++;
-
-	mrt->caller = caller;
-	mrt->macro = m;
-	mrt->macro_end = i;
-	mrt->macro_end_line = active_file_info_last->line_current;
-	mrt->macro_end_filename_id = active_file_info_last->filename_id;
-
-	if ((extra_definitions == ON) && (active_file_info_last->filename_id != m->filename_id)) {
-		redefine("WLA_FILENAME", 0.0, get_file_name(m->filename_id), DEFINITION_TYPE_STRING, strlen(get_file_name(m->filename_id)));
-		redefine("wla_filename", 0.0, get_file_name(m->filename_id), DEFINITION_TYPE_STRING, strlen(get_file_name(m->filename_id)));
-	}
-
-	active_file_info_last->line_current = m->start_line;
-	active_file_info_last->filename_id = m->filename_id;
-	i = m->start;
-
-	/* redefine NARGS */
-	if (redefine("NARGS", (double)nargs, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
-		return FAILED;
-	if (redefine("nargs", (double)nargs, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
-		return FAILED;
-
-	return SUCCEEDED;
-}
-
-
-int macro_start_dxm(struct macro_static *m, int caller, char *name, int first) {
-
-	struct macro_runtime *mrt;
-	int start;
-
-	/* start running a macro... run until .ENDM */
-	mrt = &macro_stack[macro_active];
-
-	start = i;
-
-	if (first == NO && mrt->string_current < mrt->string_last) {
-		inz = SUCCEEDED;
-		d = mrt->string[mrt->string_current++];
-	}
-	else {
-		inz = input_number();
-		if (mrt != NULL) {
-			mrt->string_current = 0;
-			mrt->string_last = 0;
-		}
-	}
-
-	if (first == YES) {
-		if (mrt != NULL)
-			mrt->offset = 0;
-	}
-	else {
-		if (caller == MACRO_CALLER_DBM)
-			mrt->offset++;
-		else
-			mrt->offset += 2;
-	}
-
-	if (inz == INPUT_NUMBER_EOL && first == NO) {
-		next_line();
-		return SUCCEEDED;
-	}
-
-	if (macro_stack_grow() == FAILED)
-		return FAILED;
-
-	mrt = &macro_stack[macro_active];
-	mrt->argument_data = malloc(sizeof(struct macro_argument *) << 1);
-	mrt->argument_data[0] = malloc(sizeof(struct macro_argument));
-	mrt->argument_data[1] = malloc(sizeof(struct macro_argument));
-	if (mrt->argument_data == NULL || mrt->argument_data[0] == NULL || mrt->argument_data[1] == NULL) {
-		print_error("Out of memory error while collecting macro arguments.\n", ERROR_NONE);
-		return FAILED;
-	}
-
-	mrt->argument_data[1]->type = SUCCEEDED;
-	mrt->argument_data[1]->value = mrt->offset;
-
-	/* filter all the data through that macro */
-	mrt->argument_data[0]->start = start;
-	mrt->argument_data[0]->type = inz;
-
-	if (inz == FAILED)
-		return FAILED;
-	else if (inz == INPUT_NUMBER_EOL) {
-		sprintf(emsg, ".%s needs data.\n", name);
-		print_error(emsg, ERROR_INP);
-		return FAILED;
-	}
-
-	mrt->supplied_arguments = 2;
-
-	if (inz == INPUT_NUMBER_ADDRESS_LABEL)
-		strcpy(mrt->argument_data[0]->string, label);
-	else if (inz == INPUT_NUMBER_STRING) {
-		mrt->argument_data[0]->type = SUCCEEDED;
-		mrt->argument_data[0]->value = label[0];
-		strcpy(mrt->string, label);
-		mrt->string_current = 1;
-		mrt->string_last = strlen(label);
-		/*
-		fprintf(stderr, "got string %s!\n", label);
-		*/
-	}
-	else if (inz == INPUT_NUMBER_STACK)
-		mrt->argument_data[0]->value = latest_stack;
-	else if (inz == SUCCEEDED)
-		mrt->argument_data[0]->value = d;
-	else
-		return FAILED;
-
-	if (macro_start(m, mrt, caller, 1) == FAILED)
-		return FAILED;
-
-	return SUCCEEDED;
-}
-
-
-int macro_start_incbin(struct macro_static *m, struct macro_incbin *incbin_data, int first) {
-
-	struct macro_runtime *mrt;
-
-	/* start running a macro... run until .ENDM */
-	if (macro_stack_grow() == FAILED)
-		return FAILED;
-
-	mrt = &macro_stack[macro_active];
-
-	if (first == YES)
-		mrt->incbin_data = incbin_data;
-	else
-		incbin_data = mrt->incbin_data;
-
-	if (incbin_data->left == 0)
-		return SUCCEEDED;
-
-	if (first == YES)
-		mrt->offset = 0;
-	else
-		mrt->offset++;
-
-	mrt->argument_data = malloc(sizeof(struct macro_argument *) << 1);
-	mrt->argument_data[0] = malloc(sizeof(struct macro_argument));
-	mrt->argument_data[1] = malloc(sizeof(struct macro_argument));
-	if (mrt->argument_data == NULL || mrt->argument_data[0] == NULL || mrt->argument_data[1] == NULL) {
-		print_error("Out of memory error while collecting macro arguments.\n", ERROR_NONE);
-		return FAILED;
-	}
-
-	/* filter all the data through that macro */
-	mrt->argument_data[1]->type = SUCCEEDED;
-	mrt->argument_data[1]->value = mrt->offset;
-	mrt->argument_data[0]->start = i;
-	mrt->argument_data[0]->type = SUCCEEDED;
-	mrt->supplied_arguments = 2;
-
-	if (incbin_data->swap != 0) {
-		if (incbin_data->swap == 1) {
-			mrt->argument_data[0]->value = incbin_data->data[incbin_data->position + 1];
-			incbin_data->swap = 2;
-		}
-		else {
-			mrt->argument_data[0]->value = incbin_data->data[incbin_data->position];
-			incbin_data->position += 2;
-			incbin_data->swap = 1;
-		}
-	}
-	else
-		mrt->argument_data[0]->value = incbin_data->data[incbin_data->position++];
-
-	incbin_data->left--;
-
-	if (macro_start(m, mrt, MACRO_CALLER_INCBIN, 1) == FAILED)
-		return FAILED;
-
-	return SUCCEEDED;
-}
-
-
-int macro_insert_byte_db(char *name) {
-
-	struct definition *d;
-
-	d = defines;
-	while (d != NULL) {
-		if (strcmp(d->alias, "_out") == 0 || strcmp(d->alias, "_OUT") == 0)
-			break;
-		d = d->next;
-	}
-
-	if (d == NULL) {
-		sprintf(emsg, "No \"_OUT/_out\" defined, .%s takes its output from there.\n", name);
-		print_error(emsg, ERROR_DIR);
-		return FAILED;
-	}
-
-	if (d->type == DEFINITION_TYPE_VALUE) {
-		if (d->value < -127 || d->value > 255) {
-			sprintf(emsg, ".%s expects 8bit data, %d is out of range!\n", name, (int)d->value);
-			print_error(emsg, ERROR_DIR);
-			return FAILED;
-		}
-		fprintf(file_out_ptr, "d%d ", (int)d->value);
-		/*
-		fprintf(stderr, ".DBM: VALUE: %d\n", (int)d->value);
-		*/
-	}
-	else if (d->type == DEFINITION_TYPE_STACK) {
-		fprintf(file_out_ptr, "c%d ", (int)d->value);
-		/*
-		fprintf(stderr, ".DBM: STACK: %d\n", (int)d->value);
-		*/
-	}
-	else {
-		sprintf(emsg, ".%s cannot handle strings in \"_OUT/_out\".\n", name);
-		print_error(emsg, ERROR_DIR);
-		return FAILED;
-	}
-
-	return SUCCEEDED;
-}
-
-
-int macro_insert_word_db(char *name) {
-
-	struct definition *d;
-
-	d = defines;
-	while (d != NULL) {
-		if (strcmp(d->alias, "_out") == 0 || strcmp(d->alias, "_OUT") == 0)
-			break;
-		d = d->next;
-	}
-
-	if (d == NULL) {
-		sprintf(emsg, "No \"_OUT/_out\" defined, .%s takes its output from there.\n", name);
-		print_error(emsg, ERROR_DIR);
-		return FAILED;
-	}
-
-	if (d->type == DEFINITION_TYPE_VALUE) {
-		if (d->value < -32768 || d->value > 65535) {
-			sprintf(emsg, ".%s expects 16bit data, %d is out of range!\n", name, (int)d->value);
-			print_error(emsg, ERROR_DIR);
-			return FAILED;
-		}
-		fprintf(file_out_ptr, "y%d ", (int)d->value);
-		/*
-		fprintf(stderr, ".DBM: VALUE: %d\n", (int)d->value);
-		*/
-	}
-	else if (d->type == DEFINITION_TYPE_STACK) {
-		fprintf(file_out_ptr, "C%d ", (int)d->value);
-		/*
-		fprintf(stderr, ".DBM: STACK: %d\n", (int)d->value);
-		*/
-	}
-	else {
-		sprintf(emsg, ".%s cannot handle strings in \"_OUT/_out\".\n", name);
-		print_error(emsg, ERROR_DIR);
-		return FAILED;
-	}
-
-	return SUCCEEDED;
-}
-
-
 int pass_1(void) {
 
-  struct macro_runtime *mrt = NULL;
+  struct macro_runtime *mrc = NULL;
   struct macro_static *m = NULL;
   int o, p, q;
 
@@ -499,11 +212,17 @@ int pass_1(void) {
 				if (tmp[q] == ':')
 					break;
 
-      /* is it a macro? */
-      if (q == ss)
-				m = macro_get(tmp);
+      /* is it a macro */
+      if (q == ss) {
+				m = macros_first;
+				while (m != NULL) {
+					if (strcmp(m->name, tmp) == 0)
+						break;
+					m = m->next;
+				}
+      }
 
-      /* it is a label after all? */
+      /* it is a label after all */
       if (q != ss || newline_beginning == ON) {
 				tmp[q] = 0;
 
@@ -553,11 +272,23 @@ int pass_1(void) {
       }
 
       /* start running a macro... run until .ENDM */
-			if (macro_stack_grow() == FAILED)
-				return FAILED;
+      if (macro_active == macro_stack_size) {
 
-      mrt = &macro_stack[macro_active];
-      mrt->argument_data = NULL;
+				struct macro_runtime *mr;
+
+
+				/* enlarge the macro stack */
+				macro_stack_size = (macro_stack_size<<1)+2;
+				mr = realloc(macro_stack, sizeof(struct macro_runtime) * macro_stack_size);
+				if (mr == NULL) {
+					print_error("Out of memory error while enlarging macro stack buffer.\n", ERROR_ERR);
+					return FAILED;
+				}
+				macro_stack = mr;
+      }
+
+      mrc = &macro_stack[macro_active];
+      mrc->argument_data = NULL;
 
       /* collect macro arguments */
       for (p = 0; 1; p++) {
@@ -574,24 +305,24 @@ int pass_1(void) {
 				if (q == INPUT_NUMBER_EOL)
 					break;
 
-				mrt->argument_data = realloc(mrt->argument_data, (p+1)*sizeof(struct macro_argument *));
-				mrt->argument_data[p] = malloc(sizeof(struct macro_argument));
-				if (mrt->argument_data == NULL || mrt->argument_data[p] == NULL) {
+				mrc->argument_data = realloc(mrc->argument_data, (p+1)*sizeof(struct macro_argument *));
+				mrc->argument_data[p] = malloc(sizeof(struct macro_argument));
+				if (mrc->argument_data == NULL || mrc->argument_data[p] == NULL) {
 					print_error("Out of memory error while collecting macro arguments.\n", ERROR_NONE);
 					return FAILED;
 				}
 
-				mrt->argument_data[p]->start = o;
-				mrt->argument_data[p]->type = q;
+				mrc->argument_data[p]->start = o;
+				mrc->argument_data[p]->type = q;
 
 				if (q == INPUT_NUMBER_ADDRESS_LABEL)
-					strcpy(mrt->argument_data[p]->string, label);
+					strcpy(mrc->argument_data[p]->string, label);
 				else if (q == INPUT_NUMBER_STRING)
-					strcpy(mrt->argument_data[p]->string, label);
+					strcpy(mrc->argument_data[p]->string, label);
 				else if (q == INPUT_NUMBER_STACK)
-					mrt->argument_data[p]->value = latest_stack;
+					mrc->argument_data[p]->value = latest_stack;
 				else if (q == SUCCEEDED)
-					mrt->argument_data[p]->value = d;
+					mrc->argument_data[p]->value = d;
 				else
 					return FAILED;
 
@@ -608,10 +339,31 @@ int pass_1(void) {
 				}
       }
 
+      macro_runtime_current = mrc;
+      macro_active++;
+      m->calls++;
+      mrc->supplied_arguments = p;
+
       next_line();
 
-      mrt->supplied_arguments = p;
-			if (macro_start(m, mrt, MACRO_CALLER_NORMAL, p) == FAILED)
+      mrc->macro = m;
+      mrc->macro_end = i;
+      mrc->macro_end_line = active_file_info_last->line_current;
+      mrc->macro_end_filename_id = active_file_info_last->filename_id;
+
+      if ((extra_definitions == ON) && (active_file_info_last->filename_id != m->filename_id)) {
+				redefine("WLA_FILENAME", 0.0, get_file_name(m->filename_id), DEFINITION_TYPE_STRING, strlen(get_file_name(m->filename_id)));
+				redefine("wla_filename", 0.0, get_file_name(m->filename_id), DEFINITION_TYPE_STRING, strlen(get_file_name(m->filename_id)));
+      }
+
+      active_file_info_last->line_current = m->start_line;
+      active_file_info_last->filename_id = m->filename_id;
+      i = m->start;
+
+      /* redefine NARGS */
+      if (redefine("NARGS", (double)p, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
+				return FAILED;
+      if (redefine("nargs", (double)p, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
 				return FAILED;
 
       continue;
@@ -652,6 +404,7 @@ int evaluate_token(void) {
 
   /* is it a label? */
   if (tmp[ss - 1] == ':' && newline_beginning == ON) {
+
     tmp[ss - 1] = 0;
     newline_beginning = OFF;
 
@@ -691,6 +444,7 @@ int evaluate_token(void) {
   opt_tmp = &opt_table[ind];
 
   for (f = opcode_n[(unsigned int)tmp[0]]; f > 0; f--) {
+
     for (inz = 0, d = SUCCEEDED; inz < OP_SIZE_MAX; inz++) {
       if (tmp[inz] == 0 && opt_tmp->op[inz] == 0 && buffer[i] == 0x0A) {
 				if (opt_tmp->type == 0)
@@ -1198,41 +952,6 @@ int parse_directive(void) {
     return SUCCEEDED;
   }
 
-	/* DBM/DWM? */
-
-	if (strcmp(cp, "DBM") == 0 || strcmp(cp, "DWM") == 0) {
-
-    struct macro_static *m;
-
-    strcpy(bak, cp);
-    inz = input_number();
-		if (inz != INPUT_NUMBER_ADDRESS_LABEL) {
-			sprintf(emsg, ".%s requires macro name.\n", bak);
-			print_error(emsg, ERROR_DIR);
-			return FAILED;
-		}
-
-		/* find the macro */
-    m = macro_get(label);
-
-		if (m == NULL) {
-			sprintf(emsg, "No MACRO \"%s\" defined.\n", label);
-			print_error(emsg, ERROR_DIR);
-			return FAILED;
-		}
-
-		if (strcmp(cp, "DBM") == 0) {
-			if (macro_start_dxm(m, MACRO_CALLER_DBM, cp, YES) == FAILED)
-				return FAILED;
-		}
-		else {
-			if (macro_start_dxm(m, MACRO_CALLER_DWM, cp, YES) == FAILED)
-				return FAILED;
-		}
-
-		return SUCCEEDED;
-	}
-
   /* DB/BYT/BYTE? */
 
   if (strcmp(cp, "DB") == 0 || strcmp(cp, "BYT") == 0 || strcmp(cp, "BYTE") == 0) {
@@ -1282,6 +1001,7 @@ int parse_directive(void) {
   if (strcmp(cp, "ASCTABLE") == 0 || strcmp(cp, "ASCIITABLE") == 0) {
 
     int astart, aend;
+
 
     strcpy(bak, cp);
 
@@ -1418,7 +1138,7 @@ int parse_directive(void) {
 				break;
       }
 
-      if (!(q == INPUT_NUMBER_STRING)) {
+      if (!q == INPUT_NUMBER_STRING) {
 				sprintf(emsg, ".%s needs string data.\n", bak);
 				print_error(emsg, ERROR_INP);
 				return FAILED;
@@ -1584,7 +1304,7 @@ int parse_directive(void) {
 				}
       }
 
-      /* fill the rest of the item with emptyfill or zero */
+      /* fill the rest with emptyfill or zero */
       if (emptyfill_defined != 0)
 				f = emptyfill;
       else
@@ -1597,17 +1317,11 @@ int parse_directive(void) {
       inz = input_number();
     }
 
-    /* fill the remaining items with emptyfill or zero */
     if (it != NULL) {
-      if (emptyfill_defined != 0)
-        f = emptyfill;
-      else
-        f = 0;
-      while (it != NULL) {
-        for (o = 0; o < it->size; o++)
-          fprintf(file_out_ptr, "d%d ", f);
-        it = it->next;
-      }
+      sprintf(emsg, "\"%s\" doesn't define all the members of \"%s\".\n", iname, s->name);
+      print_error(emsg, ERROR_DIR);
+      return FAILED;
+
     }
 
     if (inz == INPUT_NUMBER_EOL)
@@ -1803,8 +1517,8 @@ int parse_directive(void) {
 
   if (strcmp(cp, "INCBIN") == 0) {
 
-		struct macro_static *m;
-    int s, r, j;
+    int s, r;
+
 
     if (org_defined == 0 && output_format != OUTPUT_LIBRARY) {
       print_error("Before you can .INCBIN data you'll need to use ORG.\n", ERROR_LOG);
@@ -1820,36 +1534,11 @@ int parse_directive(void) {
     /* convert the path string to local enviroment */
     localize_path(label);
 
-    if (incbin_file(label, &ind, &inz, &s, &r, &m) == FAILED)
+    if (incbin_file(label, &ind, &inz, &s, &r) == FAILED)
       return FAILED;
 
-		if (m == NULL) {
-			/* D [id] [swap] [skip] [size] */
-			fprintf(file_out_ptr, "D%d %d %d %d ", ind, inz, s, r);
-		}
-		else {
-			/* we want to filter the data */
-			struct incbin_file_data *ifd;
-			struct macro_incbin *min;
-
-			min = malloc(sizeof(struct macro_incbin));
-			if (min == NULL) {
-				print_error("Out of memory error while starting to filter the .INCBINed data.\n", ERROR_NONE);
-				return FAILED;
-			}
-
-      ifd = incbin_file_data_first;
-      for (j = 0; j != ind; j++)
-				ifd = ifd->next;
-
-			min->data = (unsigned char *)ifd->data;
-			min->swap = inz;
-			min->position = s;
-			min->left = r;
-
-			if (macro_start_incbin(m, min, YES) == FAILED)
-				return FAILED;
-		}
+    /* D [id] [swap] [skip] [size] */
+    fprintf(file_out_ptr, "D%d %d %d %d ", ind, inz, s, r);
 
     return SUCCEEDED;
   }
@@ -1866,7 +1555,6 @@ int parse_directive(void) {
     }
 
     strcpy(final_name, label);
-
     return SUCCEEDED;
   }
 
@@ -2008,10 +1696,6 @@ int parse_directive(void) {
       print_error("Libraries don't take RAMSECTIONs.\n", ERROR_DIR);
       return FAILED;
     }
-    if (section_id > 255) {
-      print_error("Out of section numbers. Please start a new file.\n", ERROR_DIR);
-      return FAILED;
-    }
     if (section_status == ON) {
       sprintf(emsg, "There is already an open section called \"%s\".", sections_last->name);
       print_error(emsg, ERROR_DIR);
@@ -2080,11 +1764,13 @@ int parse_directive(void) {
 				return FAILED;
       }
 
+#if 0 /* bullshit: this is a _RAM_ section */
       if (rombanks <= d && output_format != OUTPUT_LIBRARY) {
 				sprintf(emsg, "ROM banks == %d, selected bank %d.\n", rombanks, d);
 				print_error(emsg, ERROR_DIR);
 				return FAILED;
       }
+#endif
 
       sec_tmp->bank = d;
     }
@@ -2243,10 +1929,6 @@ int parse_directive(void) {
     int l, m;
 
 
-    if (section_id > 255) {
-      print_error("Out of section numbers. Please start a new file.\n", ERROR_DIR);
-      return FAILED;
-    }
     if (section_status == ON) {
       sprintf(emsg, "There is already an open section called \"%s\".", sections_last->name);
       print_error(emsg, ERROR_DIR);
@@ -4681,25 +4363,23 @@ int parse_directive(void) {
   if (strcmp(cp, "MACRO") == 0) {
 
     struct macro_static *m;
-    int macro_start_line;
+    int macro_start;
 
 
     if (get_next_token() == FAILED)
       return FAILED;
 
-		if (strcmp(cp, "ENDM") == 0) {
-			print_error("A MACRO must have a name.\n", ERROR_DIR);
-			return FAILED;
-		}
+    macro_start = active_file_info_last->line_current;
 
-    macro_start_line = active_file_info_last->line_current;
-
-    m = macro_get(tmp);
-		if (m != NULL) {
-			sprintf(emsg, "MACRO \"%s\" was defined for the second time.\n", tmp);
-			print_error(emsg, ERROR_DIR);
-			return FAILED;
-		}
+    m = macros_first;
+    while (m != NULL) {
+      if (strcmp(tmp, m->name) == 0) {
+				sprintf(emsg, "MACRO \"%s\" was defined for the second time.\n", tmp);
+				print_error(emsg, ERROR_DIR);
+				return FAILED;
+      }
+      m = m->next;
+    }
 
     m = malloc(sizeof(struct macro_static));
     if (m == NULL) {
@@ -4769,7 +4449,7 @@ int parse_directive(void) {
 				continue;
       }
       else if ((strncmp(&buffer[i], ".E", 2) == 0) && (buffer[i + 2] == 0x0A || buffer[i + 2] == ' ')) {
-				active_file_info_last->line_current = macro_start_line;
+				active_file_info_last->line_current = macro_start;
 				sprintf(emsg, "MACRO \"%s\" wasn't terminated with .ENDM.\n", m->name);
 				print_error(emsg, ERROR_DIR);
 				return FAILED;
@@ -5038,54 +4718,22 @@ int parse_directive(void) {
 				undefine("nargs");
 
 				macro_runtime_current = NULL;
+
+				return SUCCEEDED;
       }
-			else {
-				/* redefine NARGS */
-				if (redefine("NARGS", (double)macro_stack[macro_active - 1].supplied_arguments, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
-					return FAILED;
-				if (redefine("nargs", (double)macro_stack[macro_active - 1].supplied_arguments, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
-					return FAILED;
 
-				macro_runtime_current = &macro_stack[macro_active - 1];
-			}
+      /* redefine NARGS */
+      if (redefine("NARGS", (double)macro_stack[macro_active - 1].supplied_arguments, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
+				return FAILED;
+      if (redefine("nargs", (double)macro_stack[macro_active - 1].supplied_arguments, NULL, DEFINITION_TYPE_VALUE, 0) == FAILED)
+				return FAILED;
 
-			/* was this a DBM macro call? */
-			if (macro_stack[macro_active].caller == MACRO_CALLER_DBM) {
-				/* yep, get the output */
-				if (macro_insert_byte_db("DBM") == FAILED)
-					return FAILED;
-
-				/* continue defining bytes */
-				if (macro_start_dxm(macro_stack[macro_active].macro, MACRO_CALLER_DBM, "DBM", NO) == FAILED)
-					return FAILED;
-			}
-			/* was this a DWM macro call? */
-			else if (macro_stack[macro_active].caller == MACRO_CALLER_DWM) {
-				/* yep, get the output */
-				if (macro_insert_word_db("DWM") == FAILED)
-					return FAILED;
-
-				/* continue defining words */
-				if (macro_start_dxm(macro_stack[macro_active].macro, MACRO_CALLER_DWM, "DWM", NO) == FAILED)
-					return FAILED;
-			}
-			/* or was this an INCBIN with a filter macro call? */
-			else if (macro_stack[macro_active].caller == MACRO_CALLER_INCBIN) {
-				/* yep, get the output */
-				if (macro_insert_byte_db("INCBIN") == FAILED)
-					return FAILED;
-
-				/* continue filtering the binary file */
-				if (macro_start_incbin(macro_stack[macro_active].macro, NULL, NO) == FAILED)
-					return FAILED;
-			}
+      macro_runtime_current = &macro_stack[macro_active - 1];
 
       return SUCCEEDED;
     }
 
-		sprintf(emsg, "No .MACRO open.\n");
-		print_error(emsg, ERROR_DIR);
-		return FAILED;
+    return EVALUATE_TOKEN_NOT_IDENTIFIED;
   }
 
 #if defined(MCS6502) || defined(MCS6510) || defined(W65816) || defined(WDC65C02) || defined(HUC6280)
@@ -6024,7 +5672,7 @@ int parse_directive(void) {
     }
 
     /* reseed the random number generator */
-    init_genrand(d);
+    srand(d);
 
     return SUCCEEDED;
   }
@@ -6033,6 +5681,7 @@ int parse_directive(void) {
   if (strcmp(cp, "DBRND") == 0 || strcmp(cp, "DWRND") == 0) {
 
     int o, c, min, max, f;
+
 
     /* bytes or words? */
     if (cp[1] == 'W')
@@ -6045,7 +5694,7 @@ int parse_directive(void) {
     if (q == FAILED)
       return FAILED;
     if (q != SUCCEEDED) {
-      sprintf(emsg, ".%s needs the number of random numbers.\n", cp);
+      sprintf(emsg, ".%s needs the amount of random numbers.\n", cp);
       print_error(emsg, ERROR_DIR);
       return FAILED;
     }
@@ -6053,7 +5702,7 @@ int parse_directive(void) {
     c = d;
 
     if (c <= 0) {
-      sprintf(emsg, ".%s needs that the number of random numbers is > 0.\n", cp);
+      sprintf(emsg, ".%s needs that the amount of random numbers is > 0.\n", cp);
       print_error(emsg, ERROR_DIR);
       return FAILED;
     }
@@ -6090,9 +5739,7 @@ int parse_directive(void) {
 
     /* generate the numbers */
     for (f = 0; f < c; f++) {
-      d = (genrand_int32() % (max-min+1)) + min;
-
-			fprintf(stderr, "got %d\n", d);
+      d = (rand() % (max-min+1)) + min;
 
       if (o == 1) {
 				if (d < -32768 || d > 65535) {
@@ -6121,6 +5768,7 @@ int parse_directive(void) {
 
     double m, a, s, n;
     int p, c, o, f;
+
 
     if (cp[1] == 'W')
       o = 1;
@@ -6386,7 +6034,6 @@ int get_new_definition_data(int *b, char *c, int *size, double *data) {
       print_error("A computation cannot be output as a string.\n", ERROR_DIR);
       return SUCCEEDED;
     }
-		next_line();
     return INPUT_NUMBER_STACK;
   }
 

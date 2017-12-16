@@ -9,7 +9,6 @@
 #include "parse.h"
 #include "pass_1.h"
 #include "stack.h"
-#include "include_file.h"
 
 
 int input_number_error_msg = YES, ss, string_size, input_float_mode = OFF, parse_floats = YES;
@@ -36,6 +35,7 @@ int compare_next_token(char *in, int s) {
   int a, t, d, k;
   char e;
 
+
   a = i;
   for (e = buffer[a]; e == ' ' || e == ',' || e == 0x0A; e = buffer[++a]);
 
@@ -44,15 +44,15 @@ int compare_next_token(char *in, int s) {
     for (d = 0, k = 0; k < 16; k++) {
       e = buffer[++a];
       if (e >= '0' && e <= '9')
-				d = (d * 10) + e - '0';
+	d = (d * 10) + e - '0';
       else
-				break;
+	break;
     }
 
     if (d > macro_runtime_current->supplied_arguments) {
       if (input_number_error_msg == YES) {
-				sprintf(xyz, "COMPARE_NEXT_SYMBOL: Macro \"%s\" wasn't called with enough arguments.\n", macro_runtime_current->macro->name);
-				print_error(xyz, ERROR_NONE);
+	sprintf(xyz, "COMPARE_NEXT_SYMBOL: Macro \"%s\" wasn't called with enough arguments.\n", macro_runtime_current->macro->name);
+	print_error(xyz, ERROR_NONE);
       }
       return FAILED;
     }
@@ -62,7 +62,7 @@ int compare_next_token(char *in, int s) {
     e = buffer[a];
     for (t = 0; t < s && e != ' ' && e != ',' && e != 0x0A; ) {
       if (toupper(in[t]) != toupper(e))
-				return FAILED;
+	return FAILED;
       t++;
       e = buffer[++a];
     }
@@ -71,7 +71,7 @@ int compare_next_token(char *in, int s) {
   else {
     for (t = 0; t < s && e != ' ' && e != ',' && e != 0x0A; ) {
       if (toupper(in[t]) != toupper(e))
-				return FAILED;
+	return FAILED;
       t++;
       e = buffer[++a];
     }
@@ -88,6 +88,7 @@ int input_next_string(void) {
 
   char e;
   int k, d;
+
 
   for (e = buffer[i++]; e == ' ' || e == ','; e = buffer[i++]);
 
@@ -136,12 +137,12 @@ int input_number(void) {
   int k, p, q;
   double dn;
 
+
 #if defined(MCS6502) || defined(W65816) || defined(MCS6510) || defined(WDC65C02) || defined(HUC6280)
   operand_hint = HINT_NONE;
 #endif
 
-  for (e = buffer[i++]; e == ' ' || e == ','; e = buffer[i++])
-		;
+  for (e = buffer[i++]; e == ' ' || e == ','; e = buffer[i++]);
 
   if (e == 0x0A)
     return INPUT_NUMBER_EOL;
@@ -152,18 +153,18 @@ int input_number(void) {
   while (ee != 0x0A) {
     /* string / symbol -> no calculating */
     if (ee == '"' || ee == ',' || (ee == '=' && buffer[p] == '=') ||
-				(ee == '!' && buffer[p] == '='))
+	(ee == '!' && buffer[p] == '='))
       break;
     if (ee == '-' || ee == '+' || ee == '*' || ee == '/' || ee == '&' || ee == '|' || ee == '^' ||
-				ee == '<' || ee == '>' || ee == '#' || ee == '~') {
+	ee == '<' || ee == '>' || ee == '#' || ee == '~') {
       /* launch stack calculator */
       p = stack_calculate(&buffer[i - 1], &d);
       if (p == STACK_CALCULATE_DELAY)
-				break;
+	break;
       else if (p == STACK_RETURN_LABEL)
-				return INPUT_NUMBER_ADDRESS_LABEL;
+	return INPUT_NUMBER_ADDRESS_LABEL;
       else
-				return p;
+	return p;
     }
     ee = buffer[p];
     p++;
@@ -224,14 +225,14 @@ int input_number(void) {
   if (e >= '0' && e <= '9') {
     for (k = 0; 1; k++) {
       if (buffer[i+k] >= '0' && buffer[i+k] <= '9')
-				continue;
+	continue;
       if (buffer[i+k] >= 'a' && buffer[i+k] <= 'f')
-				continue;
+	continue;
       if (buffer[i+k] >= 'A' && buffer[i+k] <= 'F')
-				continue;
+	continue;
       if (buffer[i+k] == 'h' || buffer[i+k] == 'H') {
-				d = 1;
-				break;
+	d = 1;
+	break;
       }
       break;
     }
@@ -243,35 +244,35 @@ int input_number(void) {
     for (d = 0, k = 0; k < 8; k++, i++) {
       e = buffer[i];
       if (e >= '0' && e <= '9')
-				d = (d << 4) + e - '0';
+	d = (d << 4) + e - '0';
       else if (e >= 'A' && e <= 'F')
-				d = (d << 4) + e - 'A' + 10;
+	d = (d << 4) + e - 'A' + 10;
       else if (e >= 'a' && e <= 'f')
-				d = (d << 4) + e - 'a' + 10;
+	d = (d << 4) + e - 'a' + 10;
       else if (e == 'h' || e == 'H') {
-				i++;
-				e = buffer[i];
-				break;
+	i++;
+	e = buffer[i];
+	break;
       }
       else
-				break;
+	break;
     }
 
 #if defined(MCS6502) || defined(W65816) || defined(MCS6510) || defined(WDC65C02) || defined(HUC6280)
     if (e == '.') {
       e = buffer[i+1];
       if (e == 'b' || e == 'B') {
-				operand_hint = HINT_8BIT;
-				i += 2;
+	operand_hint = HINT_8BIT;
+	i += 2;
       }
       else if (e == 'w' || e == 'W') {
-				operand_hint = HINT_16BIT;
-				i += 2;
+	operand_hint = HINT_16BIT;
+	i += 2;
       }
 #if defined(W65816)
       else if (e == 'l' || e == 'L') {
-				operand_hint = HINT_24BIT;
-				i += 2;
+	operand_hint = HINT_24BIT;
+	i += 2;
       }
 #endif
     }
@@ -287,54 +288,54 @@ int input_number(void) {
     for (k = 0; k < 9; k++, i++) {
       e = buffer[i];
       if (e >= '0' && e <= '9') {
-				if (q == 0) {
-					/* still parsing an integer */
-					flo = flo*10 + e-'0';
-				}
-				else {
-					flo = flo + dn*(e-'0');
-					dn /= 10.0;
-				}
+	if (q == 0) {
+	  /* still parsing an integer */
+	  flo = flo*10 + e-'0';
+	}
+	else {
+	  flo = flo + dn*(e-'0');
+	  dn /= 10.0;
+	}
       }
       else if (e == '.') {
-				if (q == 1) {
-					print_error("Syntax error.\n", ERROR_NUM);
-					return FAILED;
-				}
-				e = buffer[i+1];
-				if (e >= '0' && e <= '9') {
-					/* float mode, read decimals */
-					if (parse_floats == NO)
-						break;
-					q = 1;
-				}
+	if (q == 1) {
+	  print_error("Syntax error.\n", ERROR_NUM);
+	  return FAILED;
+	}
+	e = buffer[i+1];
+	if (e >= '0' && e <= '9') {
+	  /* float mode, read decimals */
+	  if (parse_floats == NO)
+	    break;
+	  q = 1;
+	}
 #if defined(MCS6502) || defined(W65816) || defined(MCS6510) || defined(WDC65C02) || defined(HUC6280)
-				else if (e == 'b' || e == 'B') {
-					operand_hint = HINT_8BIT;
-					i += 2;
-					break;
-				}
-				else if (e == 'w' || e == 'W') {
-					operand_hint = HINT_16BIT;
-					i += 2;
-					break;
-				}
+	else if (e == 'b' || e == 'B') {
+	  operand_hint = HINT_8BIT;
+	  i += 2;
+	  break;
+	}
+	else if (e == 'w' || e == 'W') {
+	  operand_hint = HINT_16BIT;
+	  i += 2;
+	  break;
+	}
 #if defined(W65816)
-				else if (e == 'l' || e == 'L') {
-					operand_hint = HINT_24BIT;
-					i += 2;
-					break;
-				}
+	else if (e == 'l' || e == 'L') {
+	  operand_hint = HINT_24BIT;
+	  i += 2;
+	  break;
+	}
 #endif
 #else
-				else {
-					print_error("Syntax error.\n", ERROR_NUM);
-					return FAILED;
-				}
+	else {
+	  print_error("Syntax error.\n", ERROR_NUM);
+	  return FAILED;
+	}
 #endif
       }
       else
-				break;
+	break;
     }
 
     /* drop the decimals */
@@ -350,26 +351,26 @@ int input_number(void) {
     for (d = 0, k = 0; k < 32; k++, i++) {
       e = buffer[i];
       if (e == '0' || e == '1')
-				d = (d << 1) + e - '0';
+	d = (d << 1) + e - '0';
       else
-				break;
+	break;
     }
 
 #if defined(MCS6502) || defined(W65816) || defined(MCS6510) || defined(WDC65C02) || defined(HUC6280)
     if (e == '.') {
       e = buffer[i+1];
       if (e == 'b' || e == 'B') {
-				operand_hint = HINT_8BIT;
-				i += 2;
+	operand_hint = HINT_8BIT;
+	i += 2;
       }
       else if (e == 'w' || e == 'W') {
-				operand_hint = HINT_16BIT;
-				i += 2;
+	operand_hint = HINT_16BIT;
+	i += 2;
       }
 #if defined(W65816)
       else if (e == 'l' || e == 'L') {
-				operand_hint = HINT_24BIT;
-				i += 2;
+	operand_hint = HINT_24BIT;
+	i += 2;
       }
 #endif
     }
@@ -383,8 +384,8 @@ int input_number(void) {
     e = buffer[i];
     if (e != '\'') {
       if (input_number_error_msg == YES) {
-				sprintf(xyz, "Got '%c' (%d) when expected \"'\".\n", e, e);
-				print_error(xyz, ERROR_NUM);
+	sprintf(xyz, "Got '%c' (%d) when expected \"'\".\n", e, e);
+	print_error(xyz, ERROR_NUM);
       }
       return FAILED;
     }
@@ -399,17 +400,17 @@ int input_number(void) {
       e = buffer[i++];
 
       if (e == '\\' && buffer[i] == '"') {
-				label[k++] = '"';
-				i++;
-				continue;
+	label[k++] = '"';
+	i++;
+	continue;
       }
 
       if (e == '"')
-				break;
+	break;
 
       if (e == 0 || e == 0x0A) {
-				print_error("String wasn't terminated properly.\n", ERROR_NUM);
-				return FAILED;
+	print_error("String wasn't terminated properly.\n", ERROR_NUM);
+	return FAILED;
       }
 
       label[k++] = e;
@@ -421,17 +422,17 @@ int input_number(void) {
     if (macro_active != 0) {
       d = 0;
       if (expand_macro_arguments(label, &d) == FAILED)
-				return FAILED;
+	return FAILED;
       if (d != 0) {
-				strcpy(label, expanded_macro_string);
-				k = strlen(label);
+	strcpy(label, expanded_macro_string);
+	k = strlen(label);
       }
     }
 
     if (k == MAX_NAME_LENGTH - 1) {
       if (input_number_error_msg == YES) {
-				sprintf(xyz, "The string is too long (max %d bytes).\n", MAX_NAME_LENGTH - 1);
-				print_error(xyz, ERROR_NUM);
+	sprintf(xyz, "The string is too long (max %d bytes).\n", MAX_NAME_LENGTH - 1);
+	print_error(xyz, ERROR_NUM);
       }
       return FAILED;
     }
@@ -499,17 +500,17 @@ int input_number(void) {
   while (tmp_def != NULL) {
     if (strcmp(label, tmp_def->alias) == 0) {
       if (tmp_def->type == DEFINITION_TYPE_VALUE) {
-				d = tmp_def->value;
-				return SUCCEEDED;
+	d = tmp_def->value;
+	return SUCCEEDED;
       }
       else if (tmp_def->type == DEFINITION_TYPE_STACK) {
-				/* skip stack definitions -> use its name instead */
+	/* skip stack definitions -> use its name instead */
       }
       else {
-				string_size = tmp_def->size;
-				memcpy(label, tmp_def->string, string_size);
-				label[string_size] = 0;
-				return INPUT_NUMBER_STRING;
+	string_size = tmp_def->size;
+	memcpy(label, tmp_def->string, string_size);
+	label[string_size] = 0;
+	return INPUT_NUMBER_STRING;
       }
     }
     tmp_def = tmp_def->next;
@@ -523,6 +524,7 @@ int get_next_token(void) {
 
   int q;
 
+
   while (1) {
     if (i == size)
       break;
@@ -531,7 +533,7 @@ int get_next_token(void) {
       newline_beginning = OFF;
       continue;
     }
-    if (buffer[i] == 0xA) {
+    if (buffer[i] == 0x0A) {
       i++;
       next_line();
       continue;
@@ -540,16 +542,16 @@ int get_next_token(void) {
   }
 
   if (buffer[i] == '"') {
-    for (ss = 0, i++; buffer[i] != 0xA && buffer[i] != '"'; ) {
+    for (ss = 0, i++; buffer[i] != 0x0A && buffer[i] != '"'; ) {
       if (buffer[i] == '\\' && buffer[i + 1] == '"') {
-				tmp[ss++] = '"';
-				i += 2;
+	tmp[ss++] = '"';
+	i += 2;
       }
       else
-				tmp[ss++] = buffer[i++];
+	tmp[ss++] = buffer[i++];
     }
 
-    if (buffer[i] == 0xA) {
+    if (buffer[i] == 0x0A) {
       print_error("GET_NEXT_TOKEN: String wasn't terminated properly.\n", ERROR_NONE);
       return FAILED;
     }
@@ -560,10 +562,10 @@ int get_next_token(void) {
     if (macro_active != 0) {
       q = 0;
       if (expand_macro_arguments(tmp, &q) == FAILED)
-				return FAILED;
+	return FAILED;
       if (q != 0) {
-				strcpy(tmp, expanded_macro_string);
-				ss = strlen(tmp);
+	strcpy(tmp, expanded_macro_string);
+	ss = strlen(tmp);
       }
     }
 
@@ -582,11 +584,11 @@ int get_next_token(void) {
     cp[ss - 1] = 0;
   }
   else if (buffer[i] == '=' || buffer[i] == '>' || buffer[i] == '<' || buffer[i] == '!') {
-    for (ss = 0; buffer[i] != 0xA && (buffer[i] == '=' || buffer[i] == '!' || buffer[i] == '<' || buffer[i] == '>')
-					 && ss <= MAX_NAME_LENGTH; tmp[ss++] = buffer[i++]);
+    for (ss = 0; buffer[i] != 0x0A && (buffer[i] == '=' || buffer[i] == '!' || buffer[i] == '<' || buffer[i] == '>')
+	   && ss <= MAX_NAME_LENGTH; tmp[ss++] = buffer[i++]);
   }
   else {
-    for (ss = 0; buffer[i] != 0xA && buffer[i] != ',' && buffer[i] != ' ' && ss <= MAX_NAME_LENGTH; ) {
+    for (ss = 0; buffer[i] != 0x0A && buffer[i] != ',' && buffer[i] != ' ' && ss <= MAX_NAME_LENGTH; ) {
       tmp[ss] = buffer[i];
       ss++;
       i++;
@@ -646,13 +648,14 @@ int expand_macro_arguments(char *in, int *s) {
   char t[256];
   int i, k, d;
 
+
   for (i = 0; i < MAX_NAME_LENGTH; i++) {
     if (in[i] == '\\') {
       if (in[i + 1] == '"' || in[i + 1] == 'n' || in[i + 1] == '\\') {
-				expanded_macro_string[i] = in[i];
-				i++;
-				expanded_macro_string[i] = in[i];
-				continue;
+	expanded_macro_string[i] = in[i];
+	i++;
+	expanded_macro_string[i] = in[i];
+	continue;
       }
       break;
     }
@@ -673,30 +676,15 @@ int expand_macro_arguments(char *in, int *s) {
 
     for (; i < MAX_NAME_LENGTH; i++, k++) {
       expanded_macro_string[k] = in[i];
-      if (in[i] == 0)
-				break;
+      if (in[i] == 0) {
+	break;
+      }
     }
 
     strcpy(t, expanded_macro_string);
     expand_macro_arguments(t, &d);
     return SUCCEEDED;
   }
-
-	if (in[i] == '!') {
-    i++;
-    sprintf(&expanded_macro_string[k], "%s%c", get_file_name(active_file_info_last->filename_id), 0);
-    k = strlen(expanded_macro_string);
-
-    for (; i < MAX_NAME_LENGTH; i++, k++) {
-      expanded_macro_string[k] = in[i];
-      if (in[i] == 0)
-				break;
-    }
-
-    strcpy(t, expanded_macro_string);
-    expand_macro_arguments(t, &d);
-    return SUCCEEDED;
-	}
 
   if (in[i] <= '0' || in[i] >= '9') {
     if (input_number_error_msg == YES) {
